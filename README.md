@@ -1,4 +1,4 @@
-#Roots — A Plant Monitoring System
+# Roots — A Plant Monitoring System
 
 **A401 Software Engineering · Team Software Bhaddies**
 
