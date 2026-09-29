@@ -1,4 +1,4 @@
-# Secrets / env (patterns without a slash match in any folder)
+# Secrets / env
 .env
 *.env
 secrets.h
