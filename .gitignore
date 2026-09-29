@@ -1,0 +1,20 @@
+# Secrets / env (patterns without a slash match in any folder)
+.env
+*.env
+secrets.h
+!secrets.h.example
+
+# PlatformIO
+.pio/
+firmware/.vscode/*
+!firmware/.vscode/extensions.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+
+# Server / MQTT
+server/mosquitto/passwd
+server/mosquitto/data/
+__pycache__/

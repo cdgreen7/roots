@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:18
+    container_name: roots-db
+    env_file: .env
+    ports:
+      - "127.0.0.1:5432:5432"   # local only (for pgAdmin/psql on the host)
+    volumes:
+      - roots_pgdata:/var/lib/postgresql
+      - ./db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: roots-mqtt
+    ports:
+      - "1883:1883"   # ESP32 (REMINDER: I need to move to 8883 + TLS before exposing to internet)
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
+      - roots_mqtt_data:/mosquitto/data
+      - roots_mqtt_log:/mosquitto/log
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    container_name: roots-api
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  roots_pgdata:
+  roots_mqtt_data:
+  roots_mqtt_log:
