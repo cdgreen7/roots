@@ -9,7 +9,7 @@ export default function ScheduleScreen() {
         <Text style={globalStyles.title}>Schedule</Text>
 
 
-        // added calendar component just for visual (replace with view to insert water dates)
+        {/*added calendar component just for visual (replace with view to insert water dates)*/}
         <Calendar
         onDateSelect={(date) => console.log("Selected:", date)}
         colors={{

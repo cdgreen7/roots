@@ -1,5 +1,5 @@
 import { globalStyles } from '@/styles/global';
-import { StyleSheet, Text, View, Image, ImageBackground } from 'react-native';
+import { StyleSheet, Text, View, ImageBackground } from 'react-native';
 import plantimage from '../../../assets/images/plant.png'
 
 export default function DataDashboard() {
@@ -8,23 +8,19 @@ export default function DataDashboard() {
     <View style={globalStyles.container}>
         <Text style={globalStyles.title}>Plant Data</Text>
         <View style={styles.centerWrapper}>
-            {/*plant back ground image to allow for data to be displayed around image*/}
+            {/*plant back ground image to allow for data to be displayed on image*/}
             <ImageBackground 
                 source={plantimage} 
                 style={styles.backgroundImage} 
             />
+            {/*Semi transparent layer over image*/}
+            <View style={styles.imageOverlay} />
             <View style={styles.temperatureLabelBox}>
-                {/*60 is placeholder temp until data from sensors can be integrated*/}
-                <Text style={styles.temperatureLabelText}>60 °F{"\n"}40%</Text> 
-            </View>   
-            <View style={styles.sunlightLabelBox}>
-                {/*8 hrs is placeholder temp until data from sensors can be integrated*/}
-                <Text style={styles.sunlightLabelText}>Daily Sunlight:{"\n"}8 hrs</Text> 
-            </View>  
-            <View style={styles.soilLabelBox}>
-                {/* is placeholder temp until data from sensors can be integrated*/}
-                <Text style={styles.sunlightLabelText}>Soil Moisture: 45%</Text> 
-            </View> 
+                {/*placeholder data until data from sensors can be integrated*/}
+                <Text style={styles.temperatureLabelText}>Temperature: 60 °F{"\n"}{"\n"}{"\n"}
+                    Humidity: 40%{"\n"}{"\n"}{"\n"}Daily Sunlight: 8 hrs {"\n"}{"\n"}{"\n"}
+                    Soil Moisture: 45%</Text> 
+            </View>    
         </View>
     </View>
     );
@@ -42,32 +38,20 @@ const styles = StyleSheet.create({
         width: 360,
         resizeMode: 'center',
     },
+    imageOverlay: {
+        ...StyleSheet.absoluteFill,
+        //Same color as global background, 4th number determines opacity level (higher more opaque)
+        backgroundColor: 'rgba(230, 231, 226, 0.67)', 
+    },
     temperatureLabelBox: {
         position: 'absolute',
         top: 50,
-        left: 10,
-
+        justifyContent: 'center', 
     },
     temperatureLabelText:{
-        fontSize: 25,
-        fontWeight: '600',
-        color: '#242444',
-    },
-    sunlightLabelBox:{
-        position: 'absolute',
-        top: 50,
-        right: 10, 
-    },
-    sunlightLabelText:{
-        fontSize: 25,
+        fontSize: 35,
         fontWeight: '600',
         color: '#242444',
         textAlign: 'center',
-    },
-    soilLabelBox: {
-        position: 'absolute',
-        bottom: 15,
-        justifyContent: 'center', 
-
     },
 });

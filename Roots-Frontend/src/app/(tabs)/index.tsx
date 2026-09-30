@@ -9,7 +9,7 @@ export default function HomeScreen() {
       <Text style={globalStyles.title}>Roots Dashboard</Text>
      <HomeHeader />
 
-    // progress bars for metrics?
+    {/* progress bars for metrics?*/}
 
     </ScrollView>
   );
