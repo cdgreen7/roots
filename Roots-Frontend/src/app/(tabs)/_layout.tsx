@@ -25,20 +25,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name='add-meal'
+        name='Data'
         options={{
-          title: 'Add Meal',
+          title: 'Data',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name='add-circle' size={size} color={color} />
+            <Ionicons name='list' size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name='meals'
+        name='schedule'
         options={{
-          title: 'All Meals',
+          title: 'Schedule',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name='list' size={size} color={color} />
+            <Ionicons name='calendar' size={size} color={color} />
           ),
         }}
       />

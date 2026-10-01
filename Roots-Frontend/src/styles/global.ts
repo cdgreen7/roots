@@ -18,12 +18,12 @@ export const globalStyles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     color: colors.text,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '600',
     color: colors.textSecondary,
     marginTop: 30,
