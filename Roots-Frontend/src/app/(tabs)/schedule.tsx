@@ -1,12 +1,13 @@
-import { globalStyles } from '@/styles/global';
-import { Text, View } from 'react-native';
+import { colors, globalStyles } from '@/styles/global';
+import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
 import { Calendar} from "react-native-calendar-ui";
 
 export default function ScheduleScreen() {
-
+// -----todo: take input to schedule watering dates for the plant
     return (
     <View style={globalStyles.container}>
-        <Text style={globalStyles.title}>Schedule</Text>
+        <Text style={globalStyles.title}>Watering Schedule</Text>
 
 
         {/*added calendar component just for visual (replace with view to insert water dates)*/}
