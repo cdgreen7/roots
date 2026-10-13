@@ -18,6 +18,8 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_TSL2591.h>
 #include "config.h"
+#include "readings.h"
+#include "actuators.h"
 
 /*
   Globals
@@ -34,21 +36,7 @@ String topicSensorData, topicStatus, topicCmd;
 uint32_t dataSendIntervalMS = SENSOR_DATA_SEND_INTERVAL;
 uint32_t lastSend = 0;
 uint32_t lastMqttAttempt = 0;
-
-/*
-  Readings struct holds the latest sensor readings.
-  This is what gets serialized to JSON and sent to the backend.
-*/
-struct Readings {
-  bool  dhtOk;
-  float tempC;
-  float humidity;
-  int   soilRaw;
-  float soilPct;
-  bool  lightOk;
-  float lux;
-};
-
+uint32_t lastControl = 0;
 
 /*
   readAnalogAvg reads the given pin multiple times and returns the average. 
@@ -160,7 +148,9 @@ void sendData() {
     Serial.println("[pub FAIL] payload truncated");
     return;
   }
-  bool ok = mqtt.publish(topicSensorData.c_str(), buf, n);
+  // Cast to uint8_t* so this hits the (payload, length, retained) overload; with a char* the
+  // length silently becomes the "retained" flag and every reading gets retained on the broker.
+  bool ok = mqtt.publish(topicSensorData.c_str(), (const uint8_t*)buf, n, false);
   Serial.printf("[pub %s] %s\n", ok ? "OK" : "FAIL", buf);
 }
 
@@ -192,7 +182,7 @@ void onMessage(char* topic, byte* payload, unsigned int len) {
     } else {
       Serial.printf("[cmd] interval out of range (5-3600): %lu\n", (unsigned long)s);
     }
-  } else {
+  } else if (!actuators::handleCommand(command)) {
     Serial.printf("[cmd] unknown: %s\n", cmd);
   }
 }
@@ -240,6 +230,7 @@ bool connectMqtt() {
     mqtt.publish(topicStatus.c_str(), "online", true);
     mqtt.subscribe(topicCmd.c_str(), 1);
     Serial.println("MQTT connected");
+    actuators::publishAll();
   } else {
     Serial.printf("MQTT failed, rc=%d\n", mqtt.state());
   }
@@ -283,6 +274,15 @@ void setupDeviceId() {
 }
 
 /*
+  mqttPublish publishes to roots/<deviceId>/<subtopic>. Passed to the actuator module.
+*/
+bool mqttPublish(const char* subtopic, const char* payload, bool retained) {
+  if (!mqtt.connected()) return false;
+  String topic = String(TOPIC_ROOT) + "/" + deviceId + "/" + subtopic;
+  return mqtt.publish(topic.c_str(), payload, retained);
+}
+
+/*
   setupMqtt configures the MQTT client. The actual connection happens in loop().
 */
 void setupMqtt() {
@@ -297,8 +297,10 @@ void setupMqtt() {
 */
 void setup() {
   Serial.begin(115200);
+  actuators::begin(mqttPublish);    // first, so every output is held OFF from boot
   setupSensors();
   connectWiFi();
+  configTzTime(TZ_INFO, NTP_SERVER1, NTP_SERVER2);  // clock for the grow light schedule
   setupDeviceId();
   setupMqtt();
 }
@@ -307,11 +309,17 @@ void setup() {
   loop runs the main application logic, handling MQTT connection management and sensor data transmission.
 */
 void loop() {
+  // Actuator timers and local control run even when MQTT/Wi-Fi is down.
+  actuators::tick();
+  if (millis() - lastControl >= CONTROL_INTERVAL) {
+    lastControl = millis();
+    actuators::update(readSensors());
+  }
+
   // If the MQTT client is not connected, attempt to reconnect every 5 seconds.
   if (!mqtt.connected()) {
     uint32_t now = millis();
-    // If 5 seconds have passed since the last attempt, try to connect to the MQTT broker.
-      if (now - lastMqttAttempt >= MQTT_RETRY_INTERVAL) {
+    if (now - lastMqttAttempt >= MQTT_RETRY_INTERVAL) {
       lastMqttAttempt = now;
       if (WiFi.status() == WL_CONNECTED) connectMqtt();
     }

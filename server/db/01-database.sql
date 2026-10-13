@@ -10,30 +10,42 @@ id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 name TEXT NOT NULL,
 device_id TEXT UNIQUE,
+online BOOLEAN NOT NULL DEFAULT false,
+last_seen_at TIMESTAMPTZ,
 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE readings (
 id BIGINT GENERATED ALWAYS AS IDENTITY,
 plant_id UUID NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
-temp REAL,
-humidity REAL,
-soil_moisture REAL,
-light REAL,
+temp DOUBLE PRECISION,
+humidity DOUBLE PRECISION,
+soil_moisture DOUBLE PRECISION,
+light DOUBLE PRECISION,
 recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_readings_plant_time ON readings (plant_id, recorded_at DESC);
 CREATE TABLE plant_rules (
 plant_id UUID PRIMARY KEY REFERENCES plants(id) ON DELETE CASCADE,
-temp_min REAL, temp_max REAL,
-humidity_min REAL, humidity_max REAL,
-soil_min REAL,
-light_on_hours INT
+water_pump_auto BOOLEAN,
+grow_light_auto BOOLEAN,
+fan_auto BOOLEAN,
+soil_min DOUBLE PRECISION,
+soil_target DOUBLE PRECISION,
+pulse_s INT,
+soak_s INT,
+max_pulses INT,
+temp_max DOUBLE PRECISION,
+humidity_max DOUBLE PRECISION,
+light_on_hour INT,
+light_on_hours INT,
+updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE actuator_state (
 plant_id UUID PRIMARY KEY REFERENCES plants(id) ON DELETE CASCADE,
-heat_lamp BOOLEAN NOT NULL DEFAULT false,
 water_pump BOOLEAN NOT NULL DEFAULT false,
 grow_light BOOLEAN NOT NULL DEFAULT false,
+fan BOOLEAN NOT NULL DEFAULT false,
+pump_fault BOOLEAN NOT NULL DEFAULT false,
 uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE watering_schedules (
