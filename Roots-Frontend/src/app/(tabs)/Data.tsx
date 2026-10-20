@@ -1,6 +1,7 @@
-import { globalStyles } from '@/styles/global';
+import { colors, globalStyles } from '@/styles/global';
 import { StyleSheet, Text, View, ImageBackground, ScrollView, FlatList } from 'react-native';
 import plantimage from '../../../assets/images/plant.png'
+import { currentReading, metrics, metricStatus, pastAverages, plantRules } from '@/data/plant';
 
 export default function DataDashboard() {
 
@@ -16,23 +17,41 @@ export default function DataDashboard() {
             {/*Semi transparent layer over image*/}
             <View style={styles.imageOverlay} />
             <View style={styles.temperatureLabelBox}>
-                {/*placeholder data until data from sensors can be integrated*/}
-                <Text style={styles.temperatureLabelText}>Temperature: 60 °F{"\n"}{"\n"}{"\n"}
-                    Humidity: 40%{"\n"}{"\n"}{"\n"}Daily Sunlight: 8 hrs {"\n"}{"\n"}{"\n"}
-                    Soil Moisture: 45%</Text> 
-            </View>    
+                {/*mock data from src/data/plant.ts until sensor data is served by the backend*/}
+                {metrics.map((m) => (
+                    <Text
+                        key={m.key}
+                        style={[
+                            styles.temperatureLabelText,
+                            metricStatus(m.key, currentReading[m.key], plantRules) !== 'ok' && { color: colors.alert },
+                        ]}
+                    >
+                        {m.label}: {currentReading[m.key]}{m.unit}
+                    </Text>
+                ))}
+            </View>
         </View>
 
 
         <Text style={globalStyles.sectionTitle}>Past Average Data</Text>
-        {/*----------will need to replace with actual past data (avered per day, so past 5 days)*/}
+        {/*daily averages for the past 5 days, most recent first*/}
         <FlatList
-            data={[{id: 2, title: 'Past data 1'}, {id: 3, title: 'Past data 2'}, {id: 4, title: 'Past data 3'}, {id: 5, title: 'Past data 4'}, {id: 6, title: 'Past data 5'}]}
+            data={pastAverages}
+            keyExtractor={(item) => item.recorded_at}
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.pastList}
             renderItem={({ item }) => (
-                <View style={{ width: 300, height: 200, backgroundColor: '#18491498', marginRight: 10, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }}>
-                    <Text style={{ color: '#fff', fontSize: 18 }}>{item.title}</Text>
+                <View style={styles.pastCard}>
+                    <Text style={styles.pastDate}>
+                        {new Date(item.recorded_at).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                    </Text>
+                    {metrics.map((m) => (
+                        <View key={m.key} style={styles.pastRow}>
+                            <Text style={styles.pastText}>{m.label}</Text>
+                            <Text style={styles.pastText}>{item[m.key]}{m.unit}</Text>
+                        </View>
+                    ))}
                 </View>
             )}
         />
@@ -62,12 +81,40 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 50,
         justifyContent: 'center', 
+        gap: 60,
     },
     temperatureLabelText:{
         fontSize: 35,
         fontWeight: '600',
         color: '#242444',
         textAlign: 'center',
+    },
+    pastList: {
+        marginBottom: 40,
+    },
+    pastCard: {
+        width: 300,
+        height: 200,
+        backgroundColor: '#18491498',
+        marginRight: 10,
+        borderRadius: 10,
+        padding: 16,
+        justifyContent: 'center',
+    },
+    pastDate: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '600',
+        marginBottom: 10,
+    },
+    pastRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 4,
+    },
+    pastText: {
+        color: '#fff',
+        fontSize: 16,
     },
 });
 
