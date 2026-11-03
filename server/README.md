@@ -1,6 +1,6 @@
 # Roots Server
 
-The backend for Roots, following the team's architecture document: a three-tier client-server system
+The backend for Roots: a three-tier client-server system
 with an MQTT publish/subscribe channel for the boards. Everything runs in Docker (on AWS in production).
 
 | Container | Image | Job |
@@ -13,7 +13,7 @@ with an MQTT publish/subscribe channel for the boards. Everything runs in Docker
 
 ```
 api/app/
-  main.py          builds the app, wires the routers, maps service errors to HTTP status codes
+  main.py          builds app, wires routers, maps service errors to HTTP status codes
   api/             API layer: REST endpoints (request/response models, auth dependency)
   mqtt_bridge.py   API layer for the boards: MQTT connection, subscribe and publish
   services/        Service layer: access checks, automation rules, alerts, board commands, auth
