@@ -37,9 +37,12 @@ services:
         condition: service_started
     ports:
       - "8000:8000"
+    volumes:
+      - roots_uploads:/srv/uploads   # post images
     restart: unless-stopped
 
 volumes:
   roots_pgdata:
   roots_mqtt_data:
   roots_mqtt_log:
+  roots_uploads:

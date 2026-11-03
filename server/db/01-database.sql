@@ -1,10 +1,14 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-CREATE TABLE USERS ( 
+CREATE TABLE users (
 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+username TEXT NOT NULL,
+name TEXT NOT NULL,
 email TEXT UNIQUE NOT NULL,
 pw_hash TEXT NOT NULL,
 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Usernames are unique regardless of case ("Caden" and "caden" are the same user).
+CREATE UNIQUE INDEX users_username_lower ON users (lower(username));
 CREATE TABLE plants (
 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -14,6 +18,7 @@ online BOOLEAN NOT NULL DEFAULT false,
 last_seen_at TIMESTAMPTZ,
 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX idx_plants_owner ON plants (owner_id);
 CREATE TABLE readings (
 id BIGINT GENERATED ALWAYS AS IDENTITY,
 plant_id UUID NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
@@ -48,15 +53,28 @@ fan BOOLEAN NOT NULL DEFAULT false,
 pump_fault BOOLEAN NOT NULL DEFAULT false,
 uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- days_of_week uses 0 = Sunday through 6 = Saturday (the same as JavaScript's Date.getDay()).
 CREATE TABLE watering_schedules (
 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 plant_id UUID NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
 days_of_week SMALLINT[] NOT NULL,
 time_of_day TIME NOT NULL
 );
+CREATE INDEX idx_watering_schedules_plant ON watering_schedules (plant_id);
+-- status is 'pending' until the friend accepts, then 'accepted'. Either direction of an accepted row counts.
 CREATE TABLE friendships (
 user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 friend_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-status TEXT NOT NULL DEFAULT 'pending',
-PRIMARY KEY (user_id, friend_id)
+status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted')),
+PRIMARY KEY (user_id, friend_id),
+CHECK (user_id <> friend_id)
 );
+CREATE TABLE posts (
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+plant_id UUID NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+body TEXT NOT NULL DEFAULT '',
+image_url TEXT,
+created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_posts_user_time ON posts (user_id, created_at DESC);
