@@ -20,4 +20,4 @@ TOKEN_LIFETIME_HOURS = int(os.getenv("TOKEN_LIFETIME_HOURS", "168"))  # one week
 # Post images are saved here and served at UPLOAD_URL_PREFIX (a Docker volume in docker-compose.yml).
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", Path(__file__).resolve().parent.parent / "uploads"))
 UPLOAD_URL_PREFIX = "/uploads"
-MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB

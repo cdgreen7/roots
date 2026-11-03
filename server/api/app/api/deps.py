@@ -17,20 +17,30 @@ _bearer = HTTPBearer(auto_error=False)
 
 
 def _pool(request: Request) -> asyncpg.Pool:
+    """
+    _pool returns the database pool main.py opened at startup.
+    """
     return request.app.state.pool
 
 
 def _bridge(request: Request) -> MqttBridge:
+    """
+    _bridge returns the MQTT bridge main.py started at startup.
+    """
     return request.app.state.bridge
 
 
 def _current_user(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> UUID:
-    """The id of the user whose token is in the Authorization header."""
+    """
+    _current_user returns the id of the user whose token is in the Authorization header.
+    Raises Unauthorized if there is no token, or it is invalid or expired.
+    """
     if credentials is None:
         raise Unauthorized("Not logged in")
     return auth.user_id_from_token(credentials.credentials)
 
 
+# Shorthand parameter types. FastAPI fills each one in by calling the function above for every request.
 Pool = Annotated[asyncpg.Pool, Depends(_pool)]
 Bridge = Annotated[MqttBridge, Depends(_bridge)]
 CurrentUser = Annotated[UUID, Depends(_current_user)]

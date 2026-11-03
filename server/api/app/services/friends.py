@@ -11,7 +11,10 @@ from .errors import Conflict, Invalid, NotFound
 
 
 async def _other_user(pool: asyncpg.Pool, user_id: UUID, username: str) -> asyncpg.Record:
-    """_other_user looks up username, raising NotFound if it doesn't exist and Invalid if it is user_id."""
+    """
+    _other_user looks up username and returns that account.
+    Raises NotFound if it doesn't exist and Invalid if it is user_id's own account.
+    """
     other = await users.get_user_by_username(pool, username.strip())
     if other is None:
         raise NotFound("User not found")

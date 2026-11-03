@@ -1,3 +1,9 @@
+/*
+  Actuator control for the Roots board: water pump, grow light, fan.
+  The actuators are controlled by a set of rules that can be updated through MQTT (the messaging protocol the board uses to talk to the server) commands.
+  The rules are saved in NVS (non-volatile storage, the ESP32's built-in flash memory) so they survive power cycles.
+  The actuators can also be controlled manually through MQTT commands, which override the rules until the override expires or is cleared.
+*/
 #include "actuators.h"
 #if ACTUATORS_ENABLED
 
@@ -9,13 +15,21 @@ namespace actuators {
 /*
   Actuator table
 */
+
+/*
+  Id indexes into the acts[] table. COUNT is the number of actuators, used for loops.
+*/
 enum Id : uint8_t { PUMP, LIGHT, FAN, COUNT };
 
+/*
+  Actuator holds the fixed configuration (name, pin, polarity, safety limit) and the live state
+  (on/off, when it turned on, manual override) for one output.
+*/
 struct Actuator {
   const char* name;        // matches actuator_state columns / command "target"
   uint8_t     pin;
-  bool        activeLow;   // true for most relay modules, false for MOSFET modules
-  uint32_t    maxOnMs;     // hard safety limit, 0 = none
+  bool        activeLow;   // true for most relay modules, false for MOSFET (transistor switch) modules
+  uint32_t    maxOnMs;     // hard safety limit in milliseconds, 0 = none
   bool        on;
   uint32_t    onSince;
   bool        manual;      // manual override active (auto rules paused)
@@ -30,18 +44,18 @@ static Actuator acts[COUNT] = {
 };
 
 /*
-  Rules (persisted in NVS). Key names mirror the plant_rules table where possible.
+  Rules (saved in non-volatile storage). Key names mirror the plant_rules table where possible.
 */
 struct Rules {
   uint8_t  version;
   bool     pumpAuto, lightAuto, fanAuto;
-  float    soilMin;        // start watering below this %
-  float    soilTarget;     // stop watering once this % is reached
+  float    soilMin;        // start watering below this percent
+  float    soilTarget;     // stop watering once this percent is reached
   uint16_t pulseS;         // seconds per pump pulse
   uint16_t soakS;          // seconds to let water soak in before re-checking
   uint8_t  maxPulses;      // pulses per watering cycle before flagging a fault
-  float    tempMax;        // fan on above this (C)
-  float    humidityMax;    // fan on above this (%)
+  float    tempMax;        // fan on above this temperature (degrees Celsius)
+  float    humidityMax;    // fan on above this humidity (percent)
   uint8_t  lightOnHour;    // local hour the light turns on (0-23)
   uint8_t  lightOnHours;   // photoperiod length (0 = never, 24 = always)
 };
@@ -72,12 +86,25 @@ static bool     stateDirty    = false;
 /*
   Helpers
 */
+
+/*
+  reached checks whether millis() has passed the given deadline.
+  Uses a signed difference so it still works when millis() rolls over (about every 49 days).
+*/
 static bool reached(uint32_t deadline) { return (int32_t)(millis() - deadline) >= 0; }
 
+/*
+  writePin drives the actuator's pin to its ON or OFF level.
+  Accounts for active-low relay modules, where LOW means ON.
+*/
 static void writePin(Actuator& a, bool on) {
   digitalWrite(a.pin, (on != a.activeLow) ? HIGH : LOW);
 }
 
+/*
+  set turns an actuator on or off, records when it changed, and marks the state as needing a publish.
+  Does nothing if the actuator is already in the requested state. "why" is only used for the debug log.
+*/
 static void set(Id id, bool on, const char* why) {
   Actuator& a = acts[id];
   if (a.on == on) return;
@@ -89,6 +116,9 @@ static void set(Id id, bool on, const char* why) {
   Serial.printf("[act] %s %s (%s)\n", a.name, on ? "ON" : "OFF", why);
 }
 
+/*
+  findActuator looks up an actuator by name (for example "water_pump") and returns its index, or -1 if not found.
+*/
 static int findActuator(const char* name) {
   for (uint8_t i = 0; i < COUNT; i++)
     if (strcmp(name, acts[i].name) == 0) return i;
@@ -98,6 +128,10 @@ static int findActuator(const char* name) {
   return -1;
 }
 
+/*
+  isAuto returns true if the actuator should currently be driven by the auto rules.
+  False if a manual override is active, auto is disabled in the rules, or (for the pump) a fault has been flagged.
+*/
 static bool isAuto(Id id) {
   if (acts[id].manual) return false;
   switch (id) {
@@ -108,12 +142,24 @@ static bool isAuto(Id id) {
   }
 }
 
-static bool timeSynced() { return time(nullptr) > 1700000000; }  // NTP has set the clock
+/*
+  timeSynced returns true once NTP (Network Time Protocol, which gets the current time from the internet)
+  has set the clock (time is past November 2023).
+  Before that the clock starts at 1970, so the light schedule can't be trusted.
+*/
+static bool timeSynced() { return time(nullptr) > 1700000000; }  // the internet time server has set the clock
 
+/*
+  saveRules writes the current rules to non-volatile storage so they survive a power cycle.
+*/
 static void saveRules() {
   prefs.putBytes("rules", &rules, sizeof(rules));
 }
 
+/*
+  loadRules reads the rules from non-volatile storage. Falls back to the defaults if nothing is stored,
+  the stored size doesn't match, or the version is different (for example after a firmware update changed the Rules struct).
+*/
 static void loadRules() {
   Rules stored;
   if (prefs.getBytesLength("rules") == sizeof(Rules) &&
@@ -128,6 +174,12 @@ static void loadRules() {
 
 /*
   Publishing
+*/
+
+/*
+  publishState publishes each actuator's on/off state and mode (automatic/manual) as retained JSON
+  to roots/<deviceId>/actuators, along with the pump fault flag and whether the clock is synced.
+  Clears stateDirty only if the publish succeeds, so a failed publish gets retried.
 */
 static void publishState() {
   if (!publishFn) return;
@@ -148,6 +200,10 @@ static void publishState() {
   if (publishFn("actuators", buf, true)) stateDirty = false;
 }
 
+/*
+  publishRules publishes the current rules as retained JSON to roots/<deviceId>/rules,
+  so the app and backend always know what the board is running.
+*/
 static void publishRules() {
   if (!publishFn) return;
   JsonDocument doc;
@@ -169,18 +225,28 @@ static void publishRules() {
   if (n < sizeof(buf)) publishFn("rules", buf, true);
 }
 
+/*
+  publishAll publishes both the actuator state and the rules. Called on MQTT connect.
+*/
 void publishAll() {
   publishState();
   publishRules();
 }
 
 /*
-  Auto rules
+  Automatic rules take the latest sensor readings and decide whether to turn each actuator on or off.
+  Called from update() after each sensor read, and from tick() after a manual override expires.
+*/
+
+/*
+  autoPump waters the plant when the soil drops below soilMin, in pulses with soak time between them,
+  until the soil reaches soilTarget. Flags a pump fault if maxPulses isn't enough to reach the target.
 */
 static void autoPump(const Readings& r) {
   if (!isAuto(PUMP)) { watering = false; return; }
 
-  // Disconnected/shorted soil sensor reads near the ADC rails. Never water on a bad reading.
+  // A disconnected or shorted soil sensor reads near the lowest or highest value the analog-to-digital converter can report.
+  // Never water on a bad reading.
   bool soilValid = r.soilRaw > SOIL_RAW_MIN_VALID && r.soilRaw < SOIL_RAW_MAX_VALID;
   if (!soilValid) {
     if (watering) Serial.println("[act] soil reading invalid, stopping watering");
@@ -188,7 +254,7 @@ static void autoPump(const Readings& r) {
     set(PUMP, false, "invalid soil reading");
     return;
   }
-
+  // Start watering if the soil is below the minimum threshold. Reset the pulse count and soak timer.
   if (!watering && r.soilPct < rules.soilMin) {
     watering = true;
     pulses = 0;
@@ -196,7 +262,7 @@ static void autoPump(const Readings& r) {
     Serial.printf("[act] soil %.1f%% < %.1f%%, start watering\n", r.soilPct, rules.soilMin);
   }
   if (!watering) return;
-
+  // Stop watering if the soil has reached the target threshold. This can happen mid-cycle if the soil is very dry and absorbs water quickly.
   if (r.soilPct >= rules.soilTarget) {
     watering = false;
     Serial.printf("[act] soil %.1f%% reached target, done (%u pulses)\n", r.soilPct, pulses);
@@ -217,15 +283,23 @@ static void autoPump(const Readings& r) {
     set(PUMP, true, "auto pulse");
   }
 }
-
+/*
+  autoFan turns the fan on if the temperature or humidity exceeds the maximum thresholds, with hysteresis
+  (a small buffer before switching back off) to avoid rapid cycling.
+  Called from update() after each sensor read.
+*/
 static void autoFan(const Readings& r) {
-  if (!isAuto(FAN) || !r.dhtOk) return;  // keep current state on a failed DHT read
+  if (!isAuto(FAN) || !r.climateOk) return;  // keep current state if the AHT20 temperature and humidity sensor read failed
   bool want = acts[FAN].on
     ? (r.tempC > rules.tempMax - FAN_TEMP_HYST || r.humidity > rules.humidityMax - FAN_HUMIDITY_HYST)
     : (r.tempC > rules.tempMax || r.humidity > rules.humidityMax);
   set(FAN, want, "auto");
 }
-
+/*
+  autoLight turns the grow light on or off based on the local time and the light schedule rules.
+  Called from update() after each sensor read, and from tick() every 30 seconds in case sensor reads are infrequent.
+  If the clock has not been set from the internet time server yet, the light schedule is ignored.
+*/
 static void autoLight() {
   if (!isAuto(LIGHT) || !timeSynced()) return;
   struct tm t;
@@ -238,6 +312,9 @@ static void autoLight() {
   set(LIGHT, want, "schedule");
 }
 
+/*
+  update is called after each sensor read. It saves the readings, runs the automatic rules, and publishes the actuator state if it changed.
+*/
 void update(const Readings& r) {
   last = r;
   haveReadings = true;
@@ -248,7 +325,7 @@ void update(const Readings& r) {
 }
 
 /*
-  Timers and safety; runs every loop() regardless of MQTT state.
+  tick is called frequently from loop() to check for timed manual overrides, pump pulse timeouts, and light schedule changes.
 */
 void tick() {
   for (uint8_t i = 0; i < COUNT; i++) {
@@ -259,7 +336,7 @@ void tick() {
       set((Id)i, false, "max on-time");
       a.manual = false;
     }
-    // Timed manual override expired: turn off and hand back to auto.
+    // Timed manual override expired: turn off and hand back to automatic control.
     if (a.manual && a.timed && reached(a.overrideEnd)) {
       a.manual = false;
       set((Id)i, false, "override expired");
@@ -267,7 +344,7 @@ void tick() {
     }
   }
 
-  // End of an auto pump pulse.
+  // End of an automatic pump pulse.
   if (acts[PUMP].on && !acts[PUMP].manual && millis() - acts[PUMP].onSince >= rules.pulseS * 1000UL) {
     set(PUMP, false, "pulse done");
   }
@@ -288,9 +365,15 @@ void tick() {
   {"cmd":"actuator","target":"water_pump","state":"on","duration_s":10}
   {"cmd":"actuator","target":"fan","state":"off"}        manual until "auto"
   {"cmd":"actuator","target":"grow_light","state":"auto"} back to rules
-  {"cmd":"rules","soil_min":30,"fan_auto":true,...}      partial update, persisted
+  {"cmd":"rules","soil_min":30,"fan_auto":true,...}      partial update, saved
   {"cmd":"pump_reset"}                                   clear pump fault
-  {"cmd":"actuators"}                                    re-publish state + rules
+  {"cmd":"actuators"}                                    re-publish state and rules
+*/
+
+/*
+  cmdActuator handles an "actuator" command: turns the target on/off/toggle as a manual override,
+  or hands it back to the automatic rules with state "auto".
+  Overrides with duration_s expire on their own; the pump is always timed for safety.
 */
 static void cmdActuator(JsonDocument& c) {
   const char* target = c["target"] | "";
@@ -331,7 +414,9 @@ static void cmdActuator(JsonDocument& c) {
   stateDirty = true;
   publishState();
 }
-
+/*
+  cmdRules updates the saved rules from a JSON command, then re-evaluates the actuators.
+*/
 static void cmdRules(JsonDocument& c) {
   if (!c["water_pump_auto"].isNull()) rules.pumpAuto  = c["water_pump_auto"];
   if (!c["grow_light_auto"].isNull()) rules.lightAuto = c["grow_light_auto"];
@@ -357,6 +442,10 @@ static void cmdRules(JsonDocument& c) {
   publishState();
 }
 
+/*
+  handleCommand routes an incoming MQTT command to the right handler based on its "cmd" field.
+  Returns true if it was an actuator command, false so main.cpp can handle it otherwise.
+*/
 bool handleCommand(JsonDocument& c) {
   const char* cmd = c["cmd"] | "";
   if      (strcmp(cmd, "actuator") == 0)  cmdActuator(c);

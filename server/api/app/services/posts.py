@@ -32,7 +32,10 @@ def _image_extension(image: bytes) -> str | None:
 
 
 def _save_image(image: bytes, extension: str) -> str:
-    """_save_image writes the image under a random name and returns that name."""
+    """
+    _save_image writes the image to UPLOAD_DIR under a random name and returns that name.
+    Random names mean an image can only be found through the post that links to it.
+    """
     config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     file_name = f"{uuid.uuid4().hex}.{extension}"
     (config.UPLOAD_DIR / file_name).write_bytes(image)

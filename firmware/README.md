@@ -2,13 +2,13 @@
 
 ESP32 firmware for a Roots plant board.
 
-Reads a capacitive soil moisture sensor, a DHT11 temperature/humidity sensor, and a TSL2591 light sensor, and publishes the readings as JSON over MQTT every 10 seconds. The Roots backend (`server/`) subscribes and stores them. It also drives the water pump, grow light and fan (see [Actuators](#actuators)).
+Reads a capacitive soil moisture sensor, an AHT20 temperature/humidity sensor, and a TSL2591 light sensor, and publishes the readings as JSON over MQTT every 10 seconds. The Roots backend (`server/`) subscribes and stores them. It also drives the water pump, grow light and fan (see [Actuators](#actuators)).
 
 ## Hardware
 
 - ESP32 DevKit V1 (ESP-WROOM-32)
 - Capacitive soil moisture sensor (TLC555I based, v2.0.0)
-- DHT11 temperature/humidity sensor
+- AHT20 temperature/humidity sensor (I2C)
 - TSL2591 light sensor (I2C)
 
 ## Wiring
@@ -17,13 +17,14 @@ Reads a capacitive soil moisture sensor, a DHT11 temperature/humidity sensor, an
 |---|---|---|
 | Soil moisture | AOUT | GPIO34 |
 | Soil moisture | VCC / GND | 3.3V / GND |
-| DHT11 | DATA | GPIO4 |
-| DHT11 | VCC / GND | 3.3V / GND |
+| AHT20 | SDA | GPIO21 |
+| AHT20 | SCL | GPIO22 |
+| AHT20 | VCC / GND | 3.3V / GND |
 | TSL2591 | SDA | GPIO21 |
 | TSL2591 | SCL | GPIO22 |
 | TSL2591 | VCC / GND | 3.3V / GND |
 
-Add a 4.7–10kΩ pull-up resistor between DHT11 DATA and VCC if your module doesn't already have one.
+The AHT20 and TSL2591 share the I2C bus (addresses 0x38 and 0x29), so wire both to GPIO21/22.
 
 GPIO34 is an input-only ADC1 pin, chosen so analog reads stay reliable alongside WiFi.
 
@@ -31,7 +32,7 @@ GPIO34 is an input-only ADC1 pin, chosen so analog reads stay reliable alongside
 
 Built with [PlatformIO](https://platformio.org/). Libraries are pulled automatically from `platformio.ini`:
 
-- DHT sensor library
+- Adafruit AHTX0
 - Adafruit Unified Sensor
 - Adafruit TSL2591 Library
 - ArduinoJson
@@ -84,7 +85,7 @@ A `sensordata` message looks like:
 }
 ```
 
-`temp_c` / `humidity` are `null` if the DHT11 read fails, and `light_lux` is `null` if the light sensor isn't found or the read fails.
+`temp_c` / `humidity` are `null` if the AHT20 isn't found or the read fails, and `light_lux` is `null` if the light sensor isn't found or the read fails.
 
 Wi-Fi connects at boot. If it can't connect within 20 s, the board restarts and tries again. After that it reconnects on its own if Wi-Fi drops. The MQTT connection is retried every 5 s. Actuator rules keep running while either one is down; readings are only published while connected.
 
@@ -126,7 +127,7 @@ Commands go to `roots/<deviceId>/cmd`:
 {"cmd":"actuators"}
 ```
 
-`read` publishes a reading right away. `interval` changes how often readings are published (5-3600 s; resets to 10 s on reboot).
+The server only sends `actuator` (with `on`, `off` or `auto`), `rules`, `pump_reset` and `actuators`. The rest are for testing with `mosquitto_pub`. `read` publishes a reading right away. `interval` changes how often readings are published (5-3600 s; resets to 10 s on reboot).
 
 `state` can be `on`, `off`, `toggle` or `auto`. `on`/`off` puts that actuator in manual mode until `auto` is sent. If you include `duration_s`, it returns to auto when the time runs out. Rules are partial updates, saved to flash, and evaluated on the board, so control keeps working when the server or Wi-Fi is down. The board is the source of truth for rules; the backend mirrors what it publishes on `rules` into `plant_rules`.
 

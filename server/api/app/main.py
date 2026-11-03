@@ -26,6 +26,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    lifespan runs once when the server starts and once when it stops.
+    On start it opens the database pool and starts the MQTT bridge as a background task.
+    On stop it cancels the bridge and closes the pool.
+    """
     pool = await data.create_pool()
     bridge = MqttBridge(pool)
     task = asyncio.create_task(bridge.run())
@@ -58,6 +63,10 @@ _STATUS = {
 
 @app.exception_handler(errors.ServiceError)
 async def service_error(request: Request, e: errors.ServiceError):
+    """
+    service_error turns a service-layer error into a JSON response with the matching HTTP status code.
+    Error types missing from _STATUS get 400. 401 responses include the WWW-Authenticate header the HTTP spec asks for.
+    """
     code = _STATUS.get(type(e), 400)
     headers = {"WWW-Authenticate": "Bearer"} if code == 401 else None
     return JSONResponse({"detail": str(e)}, status_code=code, headers=headers)
@@ -65,4 +74,7 @@ async def service_error(request: Request, e: errors.ServiceError):
 
 @app.get("/health")
 async def health(request: Request):
+    """
+    health reports whether the server is connected to the MQTT broker. Doesn't need a login.
+    """
     return {"mqtt_connected": request.app.state.bridge.client is not None}

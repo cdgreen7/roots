@@ -5,7 +5,7 @@
   Shared by main.cpp (publishing) and actuators.cpp (auto rules).
 */
 struct Readings {
-  bool  dhtOk;
+  bool  climateOk;
   float tempC;
   float humidity;
   int   soilRaw;

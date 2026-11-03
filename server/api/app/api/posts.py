@@ -23,7 +23,7 @@ async def create_post(
     image: Annotated[UploadFile | None, File()] = None,
 ):
     """
-    Share an update about one of your plants. Sent as multipart/form-data (not JSON) so it can carry a photo:
+    create_post shares an update about one of your plants. Sent as multipart/form-data (not JSON) so it can carry a photo:
     plant_id, body, and an optional JPEG, PNG, or WebP image of at most 5 MB. Returns {post_id, image_url}.
     """
     data = None
@@ -37,5 +37,8 @@ async def create_post(
 
 @router.get("/posts")
 async def friend_posts(pool: Pool, user_id: CurrentUser, limit: int = Query(50, ge=1, le=200)):
-    """Your friends' posts, newest first: [{post_id, username, plant_name, body, image_url, created_at}]."""
+    """
+    friend_posts returns your friends' posts, newest first:
+    [{post_id, username, plant_name, body, image_url, created_at}].
+    """
     return await posts.friend_posts(pool, user_id, limit)

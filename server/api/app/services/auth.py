@@ -24,6 +24,9 @@ TOKEN_ALGORITHM = "HS256"
 
 
 def _scrypt(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
+    """
+    _scrypt hashes password with the given salt and cost settings (n, r, p) and returns the 32-byte result.
+    """
     return hashlib.scrypt(password.encode(), salt=salt, n=n, r=r, p=p, dklen=32)
 
 
@@ -79,7 +82,9 @@ def user_id_from_token(token: str) -> UUID:
 
 
 def _session(user: asyncpg.Record) -> dict:
-    """The {token, user} response for register and login."""
+    """
+    _session builds the {token, user} response for register and login.
+    """
     info = {key: user[key] for key in ("id", "username", "name", "email", "created_at")}
     return {"token": issue_token(user["id"]), "user": info}
 

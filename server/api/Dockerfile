@@ -1,5 +1,7 @@
+# Builds the Roots API image; docker-compose.yml runs it as the api service.
 FROM python:3.13-slim
 WORKDIR /srv
+# Install dependencies before copying the code, so Docker can reuse that layer when only the code changes.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app

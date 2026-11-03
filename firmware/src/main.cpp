@@ -6,16 +6,15 @@
   It also listens for commands via MQTT to trigger readings or change the data send interval.
 
 
-  Note: the DHT sensor is read only once per data send interval to avoid overloading it, as it can be slow and unreliable if read too frequently.
   Note: Debug statements are printed to the Serial console for monitoring and troubleshooting, these get dropped if no Serial monitor is connected.
 */
 #include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include <DHT.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
+#include <Adafruit_AHTX0.h>
 #include <Adafruit_TSL2591.h>
 #include "config.h"
 #include "readings.h"
@@ -26,7 +25,8 @@
 */
 WiFiClient net;
 PubSubClient mqtt(net);
-DHT dht(PIN_DHT, DHT_TYPE);
+Adafruit_AHTX0 aht;
+bool ahtFound = false;
 Adafruit_TSL2591 tsl(2591);
 bool tslFound = false;
 
@@ -92,13 +92,23 @@ static float readLux() {
 
 
 /*
+  readClimate reads temperature and humidity from the AHT20 into the given Readings.
+  Sets climateOk to false (and both values to NAN) if the sensor isn't found or the read fails.
+*/
+static void readClimate(Readings& read) {
+  sensors_event_t humidity, temperature;
+  read.climateOk = ahtFound && aht.getEvent(&humidity, &temperature);
+  read.tempC     = read.climateOk ? temperature.temperature : NAN;
+  read.humidity  = read.climateOk ? humidity.relative_humidity : NAN;
+}
+
+
+/*
   readSensors reads all the sensors and returns a Readings struct with the latest values.
 */
 Readings readSensors() {
   Readings read;
-  read.tempC    = dht.readTemperature();
-  read.humidity = dht.readHumidity();
-  read.dhtOk    = !isnan(read.tempC) && !isnan(read.humidity);
+  readClimate(read);
 
   read.soilRaw  = readAnalogAvg(PIN_SOIL);
   read.soilPct  = toPercent(read.soilRaw, SOIL_RAW_DRY, SOIL_RAW_WET);
@@ -112,7 +122,7 @@ Readings readSensors() {
 /*
   sendData reads the sensors, serializes the readings to JSON, and publishes them to the MQTT broker.
   calls readSensors() to get the latest readings, then constructs a JSON document with the device ID, uptime, and sensor values.
-  If the DHT sensor read fails, it sets the temperature and humidity fields to null in the JSON document, which the backend can interpret as a failed reading.
+  If the AHT20 read fails, it sets the temperature and humidity fields to null in the JSON document, which the backend can interpret as a failed reading.
 */
 void sendData() {
   Readings read = readSensors();
@@ -121,8 +131,8 @@ void sendData() {
   // Add the device ID and uptime in seconds to the JSON document.
   sensorData["device_id"] = deviceId;
   sensorData["uptime_s"]  = millis() / 1000;
-  // Add the sensor readings to the JSON document. If the DHT sensor read failed, set the temperature and humidity fields to null.
-  if (read.dhtOk) {
+  // Add the sensor readings to the JSON document. If the AHT20 read failed, set the temperature and humidity fields to null.
+  if (read.climateOk) {
     sensorData["temp_c"]   = serialized(String(read.tempC, 1));
     sensorData["humidity"] = serialized(String(read.humidity, 1));
   } else {
@@ -238,14 +248,16 @@ bool connectMqtt() {
 }
 
 /*
-  setupSensors initializes the ADC, the DHT sensor, and the TSL2591 light sensor over I2C.
+  setupSensors initializes the ADC, then the AHT20 temperature/humidity sensor and the TSL2591 light sensor on the shared I2C bus.
 */
 void setupSensors() {
   analogReadResolution(12);         // 0-4095
   analogSetAttenuation(ADC_11db);   // full 0-3.3 V range
-  dht.begin();
 
-  Wire.begin(PIN_LUX_SDA, PIN_LUX_SCL);
+  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+  ahtFound = aht.begin(&Wire);
+  Serial.println(ahtFound ? "AHT20 found" : "AHT20 NOT found! Check SDA/SCL wiring");
+
   tslFound = tsl.begin();
   if (tslFound) {
     tsl.setTiming(TSL2591_INTEGRATIONTIME_100MS);

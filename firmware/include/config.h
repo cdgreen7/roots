@@ -8,11 +8,10 @@
 
 // Sensor Pin Assignments
 // Analog sensors MUST be on ADC1 (GPIO 32-39); ADC2 is unusable while Wi-Fi is on.
-#define PIN_DHT       4
-#define DHT_TYPE      DHT11
+// AHT20 (0x38) and TSL2591 (0x29) share the I2C bus.
 #define PIN_SOIL      34
-#define PIN_LUX_SDA   21
-#define PIN_LUX_SCL   22
+#define PIN_I2C_SDA   21
+#define PIN_I2C_SCL   22
 
 // Calibration values for sensors
 // Read raw values in air / in water and input them here.

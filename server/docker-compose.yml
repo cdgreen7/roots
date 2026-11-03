@@ -1,4 +1,7 @@
+# Runs the whole Roots backend: the database, the MQTT broker, and the API.
+# Settings come from .env (copy .env.example to start).
 services:
+  # PostgreSQL database. The .sql files in ./db create the tables the first time it starts with an empty volume.
   db:
     image: postgres:18
     container_name: roots-db
@@ -14,6 +17,7 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Mosquitto MQTT broker. The boards publish readings to it and receive commands from it.
   mqtt:
     image: eclipse-mosquitto:2
     container_name: roots-mqtt
@@ -26,6 +30,7 @@ services:
       - roots_mqtt_log:/mosquitto/log
     restart: unless-stopped
 
+  # Roots API (FastAPI). Waits for the database to be healthy before starting.
   api:
     build: ./api
     container_name: roots-api
@@ -41,6 +46,7 @@ services:
       - roots_uploads:/srv/uploads   # post images
     restart: unless-stopped
 
+# Named volumes keep the data when containers are rebuilt.
 volumes:
   roots_pgdata:
   roots_mqtt_data:

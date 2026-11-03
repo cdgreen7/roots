@@ -14,7 +14,10 @@ from .plants import owned_plant
 
 
 class CommandPublisher(Protocol):
-    """Anything that can send a command to a board; MqttBridge in production."""
+    """
+    CommandPublisher is anything that can send a command to a board; MqttBridge in production.
+    Typing against this instead of MqttBridge keeps the service layer from depending on the MQTT code.
+    """
 
     async def publish_command(self, device_id: str, command: dict) -> None: ...
 
