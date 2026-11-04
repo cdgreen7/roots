@@ -1,7 +1,6 @@
 /*
   Roots database schema.
   Postgres runs this automatically the first time the db container starts with an empty volume (see docker-compose.yml).
-  To bring an existing database up to date, run the files in db/migrations instead.
 */
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";  -- for gen_random_uuid()
 
