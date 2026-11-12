@@ -38,16 +38,16 @@ Built with [PlatformIO](https://platformio.org/). Libraries are pulled automatic
 - ArduinoJson
 - PubSubClient (MQTT)
 
-Copy `include/secrets.h.example` to `include/secrets.h` (gitignored) and fill in your Wi-Fi credentials, plus MQTT credentials if the broker requires them (leave them `""` for an anonymous broker):
+Copy `include/secrets.h.example` to `include/secrets.h` (gitignored) and fill in your Wi-Fi credentials and the board's MQTT login (the broker doesn't allow anonymous connections; ask whoever manages the server for the `roots-board` password):
 
 ```cpp
 #define WIFI_SSID     "your-wifi-ssid"
 #define WIFI_PASSWORD "your-wifi-password"
-#define MQTT_USER     ""
-#define MQTT_PASS     ""
+#define MQTT_USER     "roots-board"
+#define MQTT_PASS     "..."
 ```
 
-Set `MQTT_HOST` in `include/config.h` to the IP of the machine running the Mosquitto container.
+The board connects to the broker at `roots-plants.duckdns.org:8883` over TLS (`MQTT_HOST` / `MQTT_PORT` in `include/config.h`). It only trusts a certificate signed by Let's Encrypt; the root certificates are in `include/ca_cert.h`.
 
 ```
 pio run -t upload
@@ -56,7 +56,7 @@ pio device monitor
 
 ## Device ID
 
-The board names itself `roots-` plus the last 3 bytes of its MAC address (e.g. `roots-a1b2c3`) and prints it over serial at boot. The backend only stores data from boards it knows, so put this ID in the plant's `plants.device_id` column.
+The board names itself `roots-` plus the last 3 bytes of its MAC address (e.g. `roots-a1b2c3`) and prints it over serial at boot. The backend only stores data from boards linked to an account, so link it in the app (or with `POST /link`) using this ID.
 
 ## MQTT topics
 
