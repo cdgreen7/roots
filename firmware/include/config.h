@@ -2,8 +2,8 @@
 #include "secrets.h"
 
 // MQTT / Mosquitto settings
-#define MQTT_HOST     "192.168.1.100"   // machine running the Mosquitto container
-#define MQTT_PORT     1883
+#define MQTT_HOST     "roots-plants.duckdns.org"   // Roots server on AWS
+#define MQTT_PORT     8883              // MQTT over TLS
 #define TOPIC_ROOT    "roots"           // topics: roots/<deviceId>/...
 
 // Sensor Pin Assignments

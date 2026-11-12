@@ -10,6 +10,7 @@
 */
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
@@ -17,13 +18,14 @@
 #include <Adafruit_AHTX0.h>
 #include <Adafruit_TSL2591.h>
 #include "config.h"
+#include "ca_cert.h"
 #include "readings.h"
 #include "actuators.h"
 
 /*
   Globals
 */
-WiFiClient net;
+WiFiClientSecure net;   // TLS connection to the broker
 PubSubClient mqtt(net);
 Adafruit_AHTX0 aht;
 bool ahtFound = false;
@@ -298,6 +300,7 @@ bool mqttPublish(const char* subtopic, const char* payload, bool retained) {
   setupMqtt configures the MQTT client. The actual connection happens in loop().
 */
 void setupMqtt() {
+  net.setCACert(ROOT_CA);   // only trust a broker certificate signed by Let's Encrypt
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(onMessage);
   mqtt.setBufferSize(512);
