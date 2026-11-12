@@ -21,6 +21,11 @@ export default function DataDashboard() {
     return (
     <ScrollView style={globalStyles.container}>
         <Text style={globalStyles.title}>Plant Data</Text>
+        <View style={globalStyles.sectionTitle}>
+            <Text style={globalStyles.section}>
+                Choose Plant (drop down?)
+            </Text>
+        </View>
         <View style={styles.centerWrapper}>
             {/*plant back ground image to allow for data to be displayed on image*/}
             <ImageBackground 
@@ -43,7 +48,7 @@ export default function DataDashboard() {
         <FlatList
             data={pastData}
             horizontal
-            showsHorizontalScrollIndicator={false}
+            showsHorizontalScrollIndicator={true}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
                 <View style={styles.historyCard}>

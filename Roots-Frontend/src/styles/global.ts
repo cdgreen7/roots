@@ -29,6 +29,14 @@ export const globalStyles = StyleSheet.create({
     marginTop: 30,
     marginBottom: 16,
   },
+  section: {
+    fontSize: 18,
+    color: colors.text,
+  },
+  sectionContent: {
+    fontSize: 16,
+    color: colors.text,
+  },
   empty: {
     color: colors.textSecondary,
     fontSize: 14,
