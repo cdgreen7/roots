@@ -40,10 +40,24 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_started
-    ports:
-      - "8000:8000"
+    # No published port: the app reaches the API through Caddy (HTTPS).
     volumes:
       - roots_uploads:/srv/uploads   # post images
+    restart: unless-stopped
+
+  # Caddy reverse proxy. Gets and renews the HTTPS certificate automatically and forwards requests to the API.
+  caddy:
+    image: caddy:2
+    container_name: roots-caddy
+    depends_on:
+      - api
+    ports:
+      - "80:80"     # Let's Encrypt verification + redirect to HTTPS
+      - "443:443"   # the app talks to the API here
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     restart: unless-stopped
 
 # Named volumes keep the data when containers are rebuilt.
@@ -52,3 +66,5 @@ volumes:
   roots_mqtt_data:
   roots_mqtt_log:
   roots_uploads:
+  caddy_data:
+  caddy_config:
