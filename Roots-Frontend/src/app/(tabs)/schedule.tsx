@@ -291,7 +291,7 @@ export default function ScheduleScreen() {
     });
     return map;
   }, [rules, visibleCalendarDates]);
-
+  // Get events for the visible date range
   const visibleRangeEvents = useMemo(() => {
     const selectedKey = formatDateKey(calendarSelectedDate);
     const lastDate =
@@ -312,6 +312,7 @@ export default function ScheduleScreen() {
       ? new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0)
       : visibleCalendarDates[visibleCalendarDates.length - 1];
 
+      //Displays which plant watering is associated with each color
   const visiblePlantLegend = useMemo(() => {
     const seenEvents = new Set<string>();
     return Object.values(calendarSchedulesByDate)
@@ -333,6 +334,7 @@ export default function ScheduleScreen() {
       });
   }, [calendarSchedulesByDate, eventColors, rules]);
 
+  // Navigation for calendar view (week/month)
   const navigateCalendar = (direction: -1 | 1) => {
     const next = new Date(anchorDate);
     if (calendarGranularity === 'week') {
@@ -580,7 +582,7 @@ export default function ScheduleScreen() {
               marginTop: 5,
               borderTopWidth: 1,
               borderColor: '#eee',
-              paddingTop: 20,
+              paddingTop: 10,
               paddingBottom: 40,
             }}
           >
@@ -704,7 +706,7 @@ export default function ScheduleScreen() {
                     style={{
                       minWidth: '45%',
                       flexGrow: 1,
-                      padding: 10,
+                      padding: 8,
                       borderWidth: 1,
                       borderRadius: 5,
                       alignItems: 'center',
@@ -731,6 +733,7 @@ export default function ScheduleScreen() {
   );
 }
 
+// Styles for the schedule page
 const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
