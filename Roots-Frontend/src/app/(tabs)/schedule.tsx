@@ -28,6 +28,7 @@ type ProjectedDisplayItem = {
 };
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const PLANT_COLORS = ['#4b6888', '#2a2a4a', '#27641f', '#d18a32', '#228b8d'];
 
 export default function ScheduleScreen() {
   const [calendarGranularity, setCalendarGranularity] = useState<CalendarGranularity>('month');
@@ -40,6 +41,13 @@ export default function ScheduleScreen() {
   const [frequency, setFrequency] = useState<Frequency>('Never');
   const [plantName, setPlantName] = useState('');
   const [rules, setRules] = useState<RecurringRule[]>([]);
+  const eventColors = useMemo(() => {
+    const colorMap: Record<string, string> = {};
+    rules.forEach((rule, index) => {
+      colorMap[rule.id] = PLANT_COLORS[index % PLANT_COLORS.length];
+    });
+    return colorMap;
+  }, [rules]);
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -283,10 +291,47 @@ export default function ScheduleScreen() {
     });
     return map;
   }, [rules, visibleCalendarDates]);
-  const selectedDayEvents = useMemo(() => {
-    const key = formatDateKey(calendarSelectedDate);
-    return calendarSchedulesByDate[key] || [];
-  }, [calendarSelectedDate, calendarSchedulesByDate]);
+
+  const visibleRangeEvents = useMemo(() => {
+    const selectedKey = formatDateKey(calendarSelectedDate);
+    const lastDate =
+      calendarGranularity === 'month'
+        ? new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0)
+        : visibleCalendarDates[visibleCalendarDates.length - 1];
+    const lastKey = formatDateKey(lastDate);
+    return visibleCalendarDates
+      .filter((date) => {
+        const key = formatDateKey(date);
+        return key >= selectedKey && key <= lastKey;
+      })
+      .flatMap((date) => calendarSchedulesByDate[formatDateKey(date)] || []);
+  }, [anchorDate, calendarGranularity, calendarSelectedDate, calendarSchedulesByDate, visibleCalendarDates]);
+  
+  const visibleRangeEndDate =
+    calendarGranularity === 'month'
+      ? new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0)
+      : visibleCalendarDates[visibleCalendarDates.length - 1];
+
+  const visiblePlantLegend = useMemo(() => {
+    const seenEvents = new Set<string>();
+    return Object.values(calendarSchedulesByDate)
+      .flat()
+      .filter((schedule) => {
+        if (seenEvents.has(schedule.ruleId)) {
+          return false;
+        }
+        seenEvents.add(schedule.ruleId);
+        return true;
+      })
+      .map((schedule) => {
+        const ruleIndex = rules.findIndex((rule) => rule.id === schedule.ruleId);
+        return {
+          key: schedule.ruleId,
+          name: schedule.plantName.trim() || `Plant ${ruleIndex + 1}`,
+          color: eventColors[schedule.ruleId],
+        };
+      });
+  }, [calendarSchedulesByDate, eventColors, rules]);
 
   const navigateCalendar = (direction: -1 | 1) => {
     const next = new Date(anchorDate);
@@ -322,6 +367,12 @@ export default function ScheduleScreen() {
         paddingBottom: 8,
       }}
     >
+      <View
+        style={[
+          styles.eventDot,
+          { backgroundColor: eventColors[schedule.ruleId] || PLANT_COLORS[0], marginRight: 8 },
+        ]}
+      />
       <Text style={{ fontSize: 15, flex: 1, color: '#222' }}>
   🌱 {schedule.plantName ? `${schedule.plantName} — ` : ''}
   {schedule.dateDisplay} — {schedule.timeDisplay}{' '}
@@ -417,6 +468,10 @@ export default function ScheduleScreen() {
               {visibleCalendarDates.map((dateObj, idx) => {
                 const key = formatDateKey(dateObj);
                 const dayEvents = calendarSchedulesByDate[key] || [];
+                const daySchedules = dayEvents.filter(
+                  (event, index) =>
+                    dayEvents.findIndex((candidate) => candidate.ruleId === event.ruleId) === index
+                );
                 const isSelected = formatDateKey(calendarSelectedDate) === key;
                 const isToday = formatDateKey(new Date()) === key;
                 const isOutsideMonth =
@@ -442,10 +497,16 @@ export default function ScheduleScreen() {
                     </Text>
                     {dayEvents.length > 0 && (
                       <View style={styles.dotContainer}>
-                        {dayEvents.slice(0, 3).map((_, dotIdx) => (
+                        {daySchedules.slice(0, 3).map((event) => (
                           <View
-                            key={dotIdx}
-                            style={[styles.eventDot, isSelected && { backgroundColor: '#fff' }]}
+                            key={event.ruleId}
+                            style={[
+                              styles.eventDot,
+                              {
+                                backgroundColor: eventColors[event.ruleId] || PLANT_COLORS[0],
+                              },
+                              isSelected && styles.eventDotSelected,
+                            ]}
                           />
                         ))}
                       </View>
@@ -454,17 +515,31 @@ export default function ScheduleScreen() {
                 );
               })}
             </View>
+            <View style={styles.eventLegend}>
+              {visiblePlantLegend.map((plant) => (
+                <View key={plant.key} style={styles.legendItem}>
+                  <View
+                    style={[
+                      styles.eventDot,
+                      { backgroundColor: plant.color || PLANT_COLORS[0] },
+                    ]}
+                  />
+                  <Text style={styles.legendText}>{plant.name}</Text>
+                </View>
+              ))}
+            </View>
             {/* Selected Day Events */}
             <View style={{ marginTop: 20 }}>
               <Text style={{ fontWeight: 'bold', fontSize: 16 }}>
-                Events for {calendarSelectedDate.toLocaleDateString()}
+                Events from {calendarSelectedDate.toLocaleDateString()} to{' '}
+                {visibleRangeEndDate.toLocaleDateString()}
               </Text>
-              {selectedDayEvents.length === 0 ? (
+              {visibleRangeEvents.length === 0 ? (
                 <Text style={{ marginTop: 8, color: '#666' }}>
-                  No watering scheduled for this date.
+                  No watering scheduled for this date range.
                 </Text>
               ) : (
-                selectedDayEvents.map((schedule, index) => renderEventRow(schedule, index))
+                visibleRangeEvents.map((schedule, index) => renderEventRow(schedule, index))
               )}
             </View>
         </View>
@@ -759,6 +834,25 @@ const styles = StyleSheet.create({
   height: 5,
   borderRadius: 2.5,
   backgroundColor: '#4b6888',
+  },
+  eventDotSelected: {
+  borderWidth: 1,
+  borderColor: '#fff',
+  },
+  eventLegend: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 12,
+  marginTop: 10,
+  },
+  legendItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 5,
+  },
+  legendText: {
+  fontSize: 11,
+  color: '#666',
   },
   modalHeader: {
   flexDirection: 'row',
