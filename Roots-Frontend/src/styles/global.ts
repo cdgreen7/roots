@@ -4,10 +4,10 @@ export const colors = {
   background: '#e6e7e2',
   header: '#242444',
   surface: '#2a2a4a',
-  primary: '#4fc3f7',
+  primary: '#08a1fa',
   text: '#27641f',
   textSecondary: '#a0a0b0',
-  alert: '#ff5252',
+  alert: '#ff5252'
 };
 
 export const globalStyles = StyleSheet.create({
@@ -20,6 +20,10 @@ export const globalStyles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
+    color: colors.text,
+  },
+  subtitle: {
+    fontSize: 18,
     color: colors.text,
   },
   sectionTitle: {
