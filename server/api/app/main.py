@@ -72,6 +72,14 @@ async def service_error(request: Request, e: errors.ServiceError):
     return JSONResponse({"detail": str(e)}, status_code=code, headers=headers)
 
 
+@app.get("/", include_in_schema=False)
+async def root():
+    """
+    root lists the API's name and where to find the docs. Doesn't need a login.
+    """
+    return {"name": "Roots API", "status": "ok", "docs": "/docs"}
+
+
 @app.get("/health")
 async def health(request: Request):
     """
