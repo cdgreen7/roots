@@ -88,12 +88,7 @@ export default function HomeScreen() {
 
       </View>
 
-      <View style={globalStyles.section}>
-        <Text style={globalStyles.sectionTitle}>Upcoming</Text>
-        <Text>
-          water scheduled that is close 
-        </Text>
-      </View>
+   
     </ScrollView>
   );
 }

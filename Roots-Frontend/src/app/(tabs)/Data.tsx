@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { globalStyles } from '@/styles/global';
 import {StyleSheet, Text, View, ImageBackground, ScrollView, FlatList, Pressable,} from 'react-native';
@@ -7,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePlants } from '../context';
 
 export default function DataDashboard() {
-    // Get the shared plants array from Context
+    //define variables for easy integration with sensor data
     const { plants } = usePlants();
 
     const [selectedPlant, setSelectedPlant] = useState(
@@ -29,7 +28,6 @@ export default function DataDashboard() {
         soilMoisture: 45,
     });
 
-    // Placeholder historical data
     const [pastData] = useState([
         { id: '1', title: 'Day 1 Average', temp: 62, humidity: 41, totalSunlight: 8, soilMoisture: 45 },
         { id: '2', title: 'Day 2 Average', temp: 59, humidity: 39, totalSunlight: 7, soilMoisture: 40 },
@@ -39,165 +37,139 @@ export default function DataDashboard() {
     ]);
 
     return (
-        <ScrollView style={globalStyles.container}>
-            <Text style={globalStyles.title}>Plant Data</Text>
+    <ScrollView style={globalStyles.container}>
+        <Text style={globalStyles.title}>Plant Data</Text>
+        {/* Plant dropdown */}
+        <View style={styles.dropdownContainer}>
+            <Pressable
+                style={styles.dropdownButton}
+                onPress={() => setDropdownVisible(!dropdownVisible)}
+            >
+                <Text style={styles.dropdownText}>
+                    {currentPlant?.name ?? 'Select a Plant'}
+                </Text>
 
-            {/* Plant dropdown */}
-            <View style={styles.dropdownContainer}>
-                <Pressable
-                    style={styles.dropdownButton}
-                    onPress={() => setDropdownVisible(!dropdownVisible)}
-                >
-                    <Text style={styles.dropdownText}>
-                        {currentPlant?.name ?? 'Select a Plant'}
-                    </Text>
-
-                    <Ionicons
-                        name={dropdownVisible ? 'chevron-up' : 'chevron-down'}
-                        size={22}
-                        color="#338a36"
-                    />
-                </Pressable>
-
-                {dropdownVisible && (
-                    <View style={styles.dropdownOptions}>
-                        {plants.map(plant => (
-                            <Pressable
-                                key={plant.id}
-                                style={styles.dropdownItem}
-                                onPress={() => {
-                                    setSelectedPlant(plant.id);
-                                    setDropdownVisible(false);
-                                }}
-                            >
-                                <View style={styles.dropdownItemContent}>
-                                    <Text style={styles.dropdownItemText}>
-                                        {plant.name}
-                                    </Text>
-
-                                    {selectedPlant === plant.id && (
-                                        <Ionicons
-                                            name="checkmark"
-                                            size={20}
-                                            color="#338a36"
-                                        />
-                                    )}
-                                </View>
-                            </Pressable>
-                        ))}
-                    </View>
-                )}
-            </View>
-
-            {/* Plant sensor data */}
-            <View style={styles.centerWrapper}>
-                <ImageBackground
-                    source={plantimage}
-                    style={styles.backgroundImage}
-                    imageStyle={{ borderRadius: 12 }}
+                <Ionicons
+                    name={dropdownVisible ? 'chevron-up' : 'chevron-down'}
+                    size={22}
+                    color='#68512e'
                 />
+            </Pressable>
 
-                <View style={styles.imageOverlay} />
+            {dropdownVisible && (
+                <View style={styles.dropdownOptions}>
+                    {plants.map(plant => (
+                        <Pressable
+                            key={plant.id}
+                            style={styles.dropdownItem}
+                            onPress={() => {
+                                setSelectedPlant(plant.id);
+                                setDropdownVisible(false);
+                            }}
+                        >
+                            <View style={styles.dropdownItemContent}>
+                                <Text style={styles.dropdownItemText}>
+                                    {plant.name}
+                                </Text>
 
-                <View style={styles.temperatureLabelBox}>
-                    <Text style={styles.temperatureLabelText}>
-                        Temperature: {currentData.temperature} °F
-
-                        {'\n\n\n'}
-
-                        Humidity: {currentData.humidity}%
-
-                        {'\n\n\n'}
-
-                        Daily Sunlight: {currentData.sunlight} hrs
-
-                        {'\n\n\n'}
-
-                        Soil Moisture: {currentData.soilMoisture}%
-                    </Text>
+                                {selectedPlant === plant.id && (
+                                    <Ionicons
+                                        name="checkmark"
+                                        size={20}
+                                        color='#68512e'
+                                    />
+                                )}
+                            </View>
+                        </Pressable>
+                    ))}
                 </View>
-            </View>
+            )}
+        </View>
 
-            {/* Past average data */}
-            <Text style={globalStyles.sectionTitle}>
-                Past Average Data
-            </Text>
 
-            <FlatList
-                data={pastData}
-                horizontal
-                showsHorizontalScrollIndicator
-                keyExtractor={item => item.id}
-                renderItem={({ item }) => (
-                    <View style={styles.historyCard}>
-                        <Text style={styles.historyCardTitle}>
-                            {item.title}
-                        </Text>
-
-                        <Text style={styles.historyCardSubText}>
-                            {item.temp}°F | {item.humidity}% | {item.totalSunlight} hrs | {item.soilMoisture}%
-                        </Text>
-                    </View>
-                )}
+        <View style={styles.centerWrapper}>
+            {/*plant back ground image to allow for data to be displayed on image*/}
+            <ImageBackground 
+                source={plantimage} 
+                style={styles.backgroundImage} 
             />
-        </ScrollView>
+            {/*Semi transparent layer over image*/}
+            <View style={styles.imageOverlay} />
+            <View style={styles.temperatureLabelBox}>
+                {/*placeholder data until data from sensors can be integrated*/}
+                <Text style={styles.temperatureLabelText}>Temperature: {currentData.temperature} °F{"\n"}{"\n"}{"\n"}
+                    Humidity: {currentData.humidity}%{"\n"}{"\n"}{"\n"}Daily Sunlight: {currentData.sunlight} hrs {"\n"}{"\n"}{"\n"}
+                    Soil Moisture: {currentData.soilMoisture}%</Text> 
+            </View>    
+        </View>
+
+
+        <Text style={globalStyles.sectionTitle}>Past Average Data</Text>
+        {/*----------will need to replace with actual past data (avered per day, so past 5 days)*/}
+        <FlatList
+            data={pastData}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+                <View style={styles.historyCard}>
+                    <Text style={styles.historyCardTitle}>{item.title}</Text>
+                    <Text style={styles.historyCardSubText}>{item.temp}°F | {item.humidity}% | {item.totalSunlight} hrs | {item.soilMoisture}%</Text>
+                </View>
+            )}
+        />
+    </ScrollView>
     );
 }
 
+/*page background */
 const styles = StyleSheet.create({
-    centerWrapper: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: '100%',
+    centerWrapper: { //Ensures background image is centered on the page
+    flex: 1,                  
+    justifyContent: 'center', 
+    alignItems: 'center',     
+    width: '100%',            
     },
-
     backgroundImage: {
         height: 570,
         width: 360,
         resizeMode: 'center',
     },
-
     imageOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(230, 231, 226, 0.67)',
+        ...StyleSheet.absoluteFill,
+        //Same color as global background, 4th number determines opacity level (higher more opaque)
+        backgroundColor: 'rgba(230, 231, 226, 0.67)', 
     },
-
     temperatureLabelBox: {
         position: 'absolute',
         top: 50,
-        justifyContent: 'center',
+        justifyContent: 'center', 
     },
-
-    temperatureLabelText: {
+    temperatureLabelText:{
         fontSize: 35,
         fontWeight: '600',
         color: '#242444',
         textAlign: 'center',
     },
-
     historyCard: {
-        width: 300,
-        height: 200,
-        backgroundColor: '#18491498',
-        marginRight: 10,
-        borderRadius: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: 300, 
+        height: 200, 
+        backgroundColor: '#18491498', 
+        marginRight: 10, 
+        borderRadius: 10, 
+        justifyContent: 'center', 
+        alignItems: 'center'
     },
-
-    historyCardTitle: {
-        color: '#fff',
+    historyCardTitle: { 
+        color: '#fff', 
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: 'bold'
     },
-
     historyCardSubText: {
         color: '#e0e0e0',
         fontSize: 18,
-        marginTop: 8,
+        marginTop: 8
     },
-
     dropdownContainer: {
         marginVertical: 12,
         marginHorizontal: 10,
@@ -208,15 +180,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#E8F5E9',
+        backgroundColor: '#e4d8ce',
         padding: 16,
         borderRadius: 12,
     },
 
     dropdownText: {
-        fontSize: 18,
+        fontSize: 24,
         fontWeight: 'bold',
-        color: '#338a36',
+        color: '#68512e',
     },
 
     dropdownOptions: {
@@ -239,7 +211,7 @@ const styles = StyleSheet.create({
     },
 
     dropdownItemText: {
-        fontSize: 16,
+        fontSize: 18,
         color: '#333333',
     },
 });
