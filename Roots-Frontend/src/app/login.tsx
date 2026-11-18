@@ -30,6 +30,11 @@ export default function WelcomeScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  //clears password and reloads after failed login
+  const resetForm = () => {
+      setLoading(false);
+      setPassword('');
+  };
   const handleSubmit = async () => {
     if (isRegistering) {
       if (!name.trim() || !username.trim() || !email.trim() || !password.trim()) {
@@ -74,24 +79,45 @@ export default function WelcomeScreen() {
       // Navigate into the main app tabs
       router.replace('/(tabs)');
     //API error handling
+    setLoading(false);
+      setAuthToken(data.token);
+      router.replace('/(tabs)');
     } catch (error) {
-      console.error('API Error:', error);
-      if (error instanceof ApiError) {
-        const title =
-          error.status === 0
-            ? 'Connection Error'
-            : isRegistering
-            ? 'Registration Failed'
-            : 'Login Failed';
 
-        Alert.alert(title, error.message, [{ text: 'OK' }]);
-      } else {
-        const fallbackMessage =
-          error instanceof Error ? error.message : 'Something went wrong. Please try again.';
-        Alert.alert('Unexpected Error', fallbackMessage, [{ text: 'OK' }]);
-      }
+      const title =
+        error instanceof ApiError && error.status === 0
+          ? 'Connection Error'
+          : isRegistering
+          ? 'Registration Failed'
+          : 'Login Failed';
+
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+          ? error.message
+          : 'Something went wrong. Please try again.';
+
+      Alert.alert(
+        title,
+        message,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              resetForm();
+            },
+          },
+        ],
+        {
+          // Ensures tapping outside the alert on Android also stops the spinner
+          cancelable: true,
+          onDismiss: resetForm,
+        }
+      );
     }
   };
+
   return (
     <ImageBackground
       source={plantimage}
