@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { globalStyles } from '@/styles/global';
 import {StyleSheet, Text, View, ImageBackground, ScrollView, FlatList, Pressable,} from 'react-native';
 import plantimage from '../../../assets/images/plant.png';
@@ -7,34 +7,58 @@ import { usePlants } from '../context';
 
 export default function DataDashboard() {
     //define variables for easy integration with sensor data
-    const { plants } = usePlants();
+    const { plants, loading, error, loadPlants } = usePlants();
 
-    const [selectedPlant, setSelectedPlant] = useState(
-        plants[0]?.id ?? null
-    );
-
+    const [selectedPlant, setSelectedPlant] = useState<number | null>(null);
     const [dropdownVisible, setDropdownVisible] = useState(false);
 
-    // Find the currently selected plant
+
+    //load plants from backend
+    useEffect(() => {
+        loadPlants();
+    }, [loadPlants]);
+
+    //select the first plant after the API returns data
+    useEffect(() => {
+        if (plants.length > 0 && selectedPlant === null) {
+            setSelectedPlant(plants[0].id);
+        }
+    }, [plants, selectedPlant]);
+
+    // currently selected plant
     const currentPlant = plants.find(
         plant => plant.id === selectedPlant
     );
 
-    // Placeholder sensor data
-    const [currentData] = useState({
-        temperature: 60,
-        humidity: 40,
-        sunlight: 8,
-        soilMoisture: 45,
-    });
+    // historical data (temp)
+    const currentData = {
+        temperature: currentPlant?.temperature ?? 0,
+        humidity: 0,
+        sunlight: 0,
+        moisture: currentPlant?.moisture ?? 0,
+    };
 
-    const [pastData] = useState([
-        { id: '1', title: 'Day 1 Average', temp: 62, humidity: 41, totalSunlight: 8, soilMoisture: 45 },
-        { id: '2', title: 'Day 2 Average', temp: 59, humidity: 39, totalSunlight: 7, soilMoisture: 40 },
-        { id: '3', title: 'Day 3 Average', temp: 60, humidity: 40, totalSunlight: 9, soilMoisture: 42 },
-        { id: '4', title: 'Day 4 Average', temp: 61, humidity: 44, totalSunlight: 8, soilMoisture: 44 },
-        { id: '5', title: 'Day 5 Average', temp: 60, humidity: 45, totalSunlight: 7, soilMoisture: 43 },
-    ]);
+    const pastData = [
+        { id: '1', date: 'Yesterday', temperature: 22 },
+        { id: '2', date: '2 days ago', temperature: 21 },
+    ];
+
+
+    if (loading) {
+    return (
+        <View>
+            <Text>Loading plants...</Text>
+        </View>
+    );
+}
+
+    if (error) {
+        return (
+            <View>
+                <Text>Error loading plants: {error}</Text>
+            </View>
+        );
+    }
 
     return (
     <ScrollView style={globalStyles.container}>
@@ -88,19 +112,25 @@ export default function DataDashboard() {
 
 
         <View style={styles.centerWrapper}>
-            {/*plant back ground image to allow for data to be displayed on image*/}
-            <ImageBackground 
-                source={plantimage} 
-                style={styles.backgroundImage} 
-            />
-            {/*Semi transparent layer over image*/}
-            <View style={styles.imageOverlay} />
-            <View style={styles.temperatureLabelBox}>
-                {/*placeholder data until data from sensors can be integrated*/}
-                <Text style={styles.temperatureLabelText}>Temperature: {currentData.temperature} °F{"\n"}{"\n"}{"\n"}
-                    Humidity: {currentData.humidity}%{"\n"}{"\n"}{"\n"}Daily Sunlight: {currentData.sunlight} hrs {"\n"}{"\n"}{"\n"}
-                    Soil Moisture: {currentData.soilMoisture}%</Text> 
-            </View>    
+            <ImageBackground
+                source={plantimage}
+                style={styles.backgroundImage}
+                imageStyle={{ resizeMode: 'contain' }}
+            >
+                <View style={styles.imageOverlay} />
+
+                <View style={styles.temperatureLabelBox}>
+                    <Text style={styles.temperatureLabelText}>
+                        Temperature: {currentData.temperature} °F
+                        {'\n\n\n'}
+                        Humidity: {currentData.humidity}%
+                        {'\n\n\n'}
+                        Daily Sunlight: {currentData.sunlight} hrs
+                        {'\n\n\n'}
+                        Soil Moisture: {currentData.moisture}%
+                    </Text>
+                </View>
+            </ImageBackground>
         </View>
 
 
@@ -113,8 +143,10 @@ export default function DataDashboard() {
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
                 <View style={styles.historyCard}>
-                    <Text style={styles.historyCardTitle}>{item.title}</Text>
-                    <Text style={styles.historyCardSubText}>{item.temp}°F | {item.humidity}% | {item.totalSunlight} hrs | {item.soilMoisture}%</Text>
+                    <Text style={styles.historyCardTitle}>{item.date}</Text>
+                    <Text style={styles.historyCardSubText}>
+                        {item.temperature}°F
+                    </Text>
                 </View>
             )}
         />

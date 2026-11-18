@@ -1,6 +1,7 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
+import { apiRequest } from '../api/client';
 
-type Plant = {
+ export type Plant = {
     id: number;
     name: string;
     moisture: number;
@@ -11,38 +12,55 @@ type Plant = {
 type PlantContextType = {
     plants: Plant[];
     setPlants: React.Dispatch<React.SetStateAction<Plant[]>>;
+    loading: boolean;
+    error: string | null;
+    loadPlants: () => Promise<void>;
 };
 
 const PlantContext = createContext<PlantContextType | undefined>(undefined);
 
 export function PlantProvider({ children }: { children: React.ReactNode }) {
 
-    const [plants, setPlants] = useState<Plant[]>([
-        {
-            id: 1,
-            name: "Monstera",
-            moisture: 20,
-            temperature: 24,
-            health: "unhealthy"
-        },
-        {
-            id: 2,
-            name: "Snake Plant",
-            moisture: 55,
-            temperature: 22,
-            health: "healthy"
-        },
-        {
-            id: 3,
-            name: "Peace Lily",
-            moisture: 23,
-            temperature: 50,
-            health: "unhealthy"
+    const [plants, setPlants] = useState<Plant[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const loadPlants = useCallback(async () => {
+        try {
+            console.log('Fetching plants...');
+
+            setLoading(true);
+            setError(null);
+
+            const data = await apiRequest<Plant[]>('/plants');
+
+            console.log('Plants returned:', data);
+
+            setPlants(data);
+
+        } catch (err) {
+            console.error('Error fetching plants:', err);
+
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to retrieve plants'
+            );
+        } finally {
+            setLoading(false);
         }
-    ]);
+    }, []);
 
     return (
-        <PlantContext.Provider value={{ plants, setPlants }}>
+        <PlantContext.Provider
+            value={{
+                plants,
+                setPlants,
+                loading,
+                error,
+                loadPlants
+            }}
+        >
             {children}
         </PlantContext.Provider>
     );
