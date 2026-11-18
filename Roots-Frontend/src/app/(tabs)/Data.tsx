@@ -1,26 +1,92 @@
 import { useState } from 'react';
 import { globalStyles } from '@/styles/global';
-import { StyleSheet, Text, View, ImageBackground, ScrollView, FlatList } from 'react-native';
-import plantimage from '../../../assets/images/plant.png'
+import {StyleSheet, Text, View, ImageBackground, ScrollView, FlatList, Pressable,} from 'react-native';
+import plantimage from '../../../assets/images/plant.png';
+import { Ionicons } from '@expo/vector-icons';
+import { usePlants } from '../context';
 
 export default function DataDashboard() {
     //define variables for easy integration with sensor data
-    const [currentData, setCurrentData] = useState({
+    const { plants } = usePlants();
+
+    const [selectedPlant, setSelectedPlant] = useState(
+        plants[0]?.id ?? null
+    );
+
+    const [dropdownVisible, setDropdownVisible] = useState(false);
+
+    // Find the currently selected plant
+    const currentPlant = plants.find(
+        plant => plant.id === selectedPlant
+    );
+
+    // Placeholder sensor data
+    const [currentData] = useState({
         temperature: 60,
         humidity: 40,
         sunlight: 8,
-        soilMoisture: 45
+        soilMoisture: 45,
     });
-    const [pastData, setPastData] = useState([
+
+    const [pastData] = useState([
         { id: '1', title: 'Day 1 Average', temp: 62, humidity: 41, totalSunlight: 8, soilMoisture: 45 },
         { id: '2', title: 'Day 2 Average', temp: 59, humidity: 39, totalSunlight: 7, soilMoisture: 40 },
         { id: '3', title: 'Day 3 Average', temp: 60, humidity: 40, totalSunlight: 9, soilMoisture: 42 },
         { id: '4', title: 'Day 4 Average', temp: 61, humidity: 44, totalSunlight: 8, soilMoisture: 44 },
         { id: '5', title: 'Day 5 Average', temp: 60, humidity: 45, totalSunlight: 7, soilMoisture: 43 },
     ]);
+
     return (
     <ScrollView style={globalStyles.container}>
         <Text style={globalStyles.title}>Plant Data</Text>
+        {/* Plant dropdown */}
+        <View style={styles.dropdownContainer}>
+            <Pressable
+                style={styles.dropdownButton}
+                onPress={() => setDropdownVisible(!dropdownVisible)}
+            >
+                <Text style={styles.dropdownText}>
+                    {currentPlant?.name ?? 'Select a Plant'}
+                </Text>
+
+                <Ionicons
+                    name={dropdownVisible ? 'chevron-up' : 'chevron-down'}
+                    size={22}
+                    color='#68512e'
+                />
+            </Pressable>
+
+            {dropdownVisible && (
+                <View style={styles.dropdownOptions}>
+                    {plants.map(plant => (
+                        <Pressable
+                            key={plant.id}
+                            style={styles.dropdownItem}
+                            onPress={() => {
+                                setSelectedPlant(plant.id);
+                                setDropdownVisible(false);
+                            }}
+                        >
+                            <View style={styles.dropdownItemContent}>
+                                <Text style={styles.dropdownItemText}>
+                                    {plant.name}
+                                </Text>
+
+                                {selectedPlant === plant.id && (
+                                    <Ionicons
+                                        name="checkmark"
+                                        size={20}
+                                        color='#68512e'
+                                    />
+                                )}
+                            </View>
+                        </Pressable>
+                    ))}
+                </View>
+            )}
+        </View>
+
+
         <View style={styles.centerWrapper}>
             {/*plant back ground image to allow for data to be displayed on image*/}
             <ImageBackground 
@@ -103,6 +169,49 @@ const styles = StyleSheet.create({
         color: '#e0e0e0',
         fontSize: 18,
         marginTop: 8
-    }
-});
+    },
+    dropdownContainer: {
+        marginVertical: 12,
+        marginHorizontal: 10,
+        zIndex: 10,
+    },
 
+    dropdownButton: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#e4d8ce',
+        padding: 16,
+        borderRadius: 12,
+    },
+
+    dropdownText: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#68512e',
+    },
+
+    dropdownOptions: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        marginTop: 5,
+        elevation: 4,
+    },
+
+    dropdownItem: {
+        padding: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#EEEEEE',
+    },
+
+    dropdownItemContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+
+    dropdownItemText: {
+        fontSize: 18,
+        color: '#333333',
+    },
+});
