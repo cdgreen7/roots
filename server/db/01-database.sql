@@ -71,16 +71,6 @@ pump_fault BOOLEAN NOT NULL DEFAULT false,
 uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- watering_schedules: when a user plans to water a plant (shown on the app's calendar).
--- days_of_week uses 0 = Sunday through 6 = Saturday (the same as JavaScript's Date.getDay()).
-CREATE TABLE watering_schedules (
-id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-plant_id UUID NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
-days_of_week SMALLINT[] NOT NULL,
-time_of_day TIME NOT NULL
-);
-CREATE INDEX idx_watering_schedules_plant ON watering_schedules (plant_id);
-
 -- friendships: user_id sent the request and friend_id received it.
 -- status is 'pending' until the friend accepts, then 'accepted'. Either direction of an accepted row counts.
 CREATE TABLE friendships (

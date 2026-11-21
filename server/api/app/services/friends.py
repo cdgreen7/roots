@@ -1,6 +1,6 @@
 """
 Friends: sending and accepting friend requests. Accepted friends can see each other's posts
-and view each other's plant readings, alerts, and schedules.
+and view each other's plant readings and alerts.
 """
 from uuid import UUID
 

@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config, data
-from .api import auth, control, friends, plants, posts, schedules
+from .api import auth, control, friends, plants, posts
 from .mqtt_bridge import MqttBridge
 from .services import errors
 
@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Roots API", lifespan=lifespan)
-for module in (auth, plants, control, schedules, friends, posts):
+for module in (auth, plants, control, friends, posts):
     app.include_router(module.router)
 
 # Post images. File names are random, so an image can only be found through a post that links to it.
