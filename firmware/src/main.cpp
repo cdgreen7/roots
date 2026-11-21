@@ -151,8 +151,10 @@ void sendData() {
     sensorData["light_lux"] = nullptr;
   }
   sensorData["rssi"] = WiFi.RSSI();
+  // Tells the backend whether this board drives actuators, so the app only shows controls when it does.
+  sensorData["has_actuators"] = (bool)ACTUATORS_ENABLED;
   // Serialize the JSON document to a buffer and publish it to the MQTT broker. Print the result to Serial for debugging.
-  // At most, the buffer should be less than 180 bytes, but we use 256 to be safe. 
+  // At most, the buffer should be less than 210 bytes, but we use 256 to be safe. 
   char buf[256];
   size_t n = serializeJson(sensorData, buf, sizeof(buf));
   // If the serialized JSON somehow exceeds the buffer size, print an error and return without publishing.

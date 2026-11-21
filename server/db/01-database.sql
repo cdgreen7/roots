@@ -16,6 +16,16 @@ created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 -- Usernames are unique regardless of case ("Caden" and "caden" are the same user).
 CREATE UNIQUE INDEX users_username_lower ON users (lower(username));
 
+-- boards: every board that has connected to the broker, linked to a plant or not. /link checks this table so a
+-- mistyped device ID fails instead of creating a plant that never gets data. has_actuators comes from the board's
+-- readings (firmware ACTUATORS_ENABLED); the app shows actuator controls only when it is true.
+CREATE TABLE boards (
+device_id TEXT PRIMARY KEY,
+has_actuators BOOLEAN NOT NULL DEFAULT false,
+first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- plants: one row per plant. device_id is the linked board ("roots-xxxxxx", printed at boot);
 -- online and last_seen_at are updated from the board's MQTT messages.
 CREATE TABLE plants (

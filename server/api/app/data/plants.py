@@ -6,7 +6,16 @@ from uuid import UUID
 
 import asyncpg
 
-PLANT_COLUMNS = "id, owner_id, name, device_id, online, last_seen_at, created_at"
+# online: the board's status says online AND it has sent something in the last minute. It sends a reading
+# every 10 s, so a minute of silence means it's gone even if the broker never sent "offline"
+# (for example, the board died while the broker was down).
+# has_actuators: from the boards table; false until the board has sent a reading.
+PLANT_COLUMNS = """
+    id, owner_id, name, device_id,
+    coalesce(online AND last_seen_at > now() - interval '60 seconds', false) AS online,
+    last_seen_at, created_at,
+    coalesce((SELECT b.has_actuators FROM boards b WHERE b.device_id = plants.device_id), false) AS has_actuators
+"""
 
 
 async def create_plant(pool: asyncpg.Pool, owner_id: UUID, name: str, device_id: str) -> asyncpg.Record:
@@ -56,7 +65,9 @@ async def set_online(pool: asyncpg.Pool, device_id: str, online: bool, seen_now:
 
 async def mark_seen(pool: asyncpg.Pool, device_id: str) -> None:
     """
-    mark_seen sets last_seen_at to now for the plant linked to device_id.
-    Called whenever the board sends a message, so the app can show when it was last heard from.
+    mark_seen sets last_seen_at to now for the plant linked to device_id, and marks it online.
+    Called whenever the board sends a live message, so the app can show when it was last heard from.
+    Setting online here matters for a board that connected before it was linked: its "online" status
+    arrived before the plant existed, so without this it would show offline until it reconnected.
     """
-    await pool.execute("UPDATE plants SET last_seen_at = now() WHERE device_id = $1", device_id)
+    await pool.execute("UPDATE plants SET last_seen_at = now(), online = true WHERE device_id = $1", device_id)

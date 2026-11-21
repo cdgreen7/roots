@@ -6,7 +6,7 @@ from uuid import UUID
 
 import asyncpg
 
-from ..data import plants, readings, users
+from ..data import boards, plants, readings, users
 from .errors import Conflict, NotFound
 
 
@@ -36,8 +36,11 @@ async def link_device(pool: asyncpg.Pool, user_id: UUID, device_id: str, plant_n
     """
     link_device creates a plant for the user linked to the board device_id (the "roots-xxxxxx" id
     the board prints at boot), so the server starts storing that board's data.
-    Raises Conflict if the board is already linked to a plant.
+    Raises NotFound if the board has never connected, and Conflict if it is already linked to a plant.
     """
+    device_id = device_id.strip().lower()  # the board prints its ID in lowercase; users may type uppercase
+    if not await boards.exists(pool, device_id):
+        raise NotFound("Device not found. Make sure it's powered on and connected to Wi-Fi, then try again.")
     try:
         plant = await plants.create_plant(pool, user_id, plant_name.strip(), device_id)
     except asyncpg.UniqueViolationError as e:

@@ -46,7 +46,7 @@ pio device monitor
 
 ## Device ID
 
-The board names itself `roots-` plus the last 3 bytes of its MAC address (e.g. `roots-a1b2c3`) and prints it over serial at boot. The backend only stores data from boards linked to an account, so link it in the app (or with `POST /link`) using this ID.
+The board names itself `roots-` plus the last 3 bytes of its MAC address (e.g. `roots-a1b2c3`) and prints it over serial at boot. The backend only stores data from boards linked to an account, so link it in the app (or with `POST /link`) using this ID. The board has to be powered on and connected first: `/link` rejects IDs the server has never heard from.
 
 ## MQTT topics
 
@@ -71,13 +71,14 @@ A `sensordata` message looks like:
   "soil_pct": 42.0,
   "soil_raw": 2100,
   "light_lux": 134.2,
-  "rssi": -61
+  "rssi": -61,
+  "has_actuators": true
 }
 ```
 
 `temp_c` / `humidity` are `null` if the AHT20 isn't found or the read fails, and `light_lux` is `null` if the light sensor isn't found or the read fails.
 
-Wi-Fi connects at boot. If it can't connect within 20 s, the board restarts and tries again. After that it reconnects on its own if Wi-Fi drops. The MQTT connection is retried every 5 s. Actuator rules keep running while either one is down; readings are only published while connected.
+Wi-Fi connects at boot. If it can't connect within 20 s, the board carries on offline and keeps retrying in the background. It also reconnects on its own if Wi-Fi drops. The MQTT connection is retried every 5 s. Actuator rules keep running while either one is down; readings are only published while connected.
 
 ## Calibration
 

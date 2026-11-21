@@ -8,14 +8,15 @@ Device messages: stores what the boards publish over MQTT. The MQTT bridge passe
 "Retained" means the broker keeps the last message on that topic and replays it
 to anyone who subscribes later, so it can be old.
 Any live (not retained) message from a board also updates plants.last_seen_at.
-Messages from devices not linked to a plant are logged and dropped.
+Every live message also records the board in the boards table (linked or not), so /link can check the ID exists.
+Messages from devices not linked to a plant are otherwise logged and dropped.
 """
 import json
 import logging
 
 import asyncpg
 
-from ..data import device_state, plants, readings
+from ..data import boards, device_state, plants, readings
 
 log = logging.getLogger("roots.devices")
 
@@ -40,6 +41,8 @@ async def handle_message(pool: asyncpg.Pool, device_id: str, kind: str, raw: str
             return
         log.info("%s is %s", device_id, raw)
         online = raw == "online"
+        if online and not retained:
+            await boards.record_seen(pool, device_id)
         # "offline" comes from the broker, not the board: the board registers it as its "Last Will" message
         # when it connects, and the broker publishes it if the board drops off. So it isn't a sighting.
         if not await plants.set_online(pool, device_id, online, seen_now=online and not retained):
@@ -54,6 +57,11 @@ async def handle_message(pool: asyncpg.Pool, device_id: str, kind: str, raw: str
     if not isinstance(data, dict):
         log.warning("bad JSON on %s from %s: %r", kind, device_id, raw[:200])
         return
+
+    # Only live messages count as hearing from the board; retained ones may be hours old.
+    if not retained:
+        flag = data.get("has_actuators") if kind == "sensordata" else None
+        await boards.record_seen(pool, device_id, flag if isinstance(flag, bool) else None)
 
     # Map the board's field names to the database column names.
     if kind == "sensordata":
