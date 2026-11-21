@@ -201,8 +201,8 @@ void onMessage(char* topic, byte* payload, unsigned int len) {
 
 /*
   connectWiFi connects to the Wi-Fi network using the credentials in secrets.h.
-  Waits up to WIFI_CONNECT_TIMEOUT, printing dots to Serial. If it can't connect,
-  it restarts the board to try again from a clean state.
+  Waits up to WIFI_CONNECT_TIMEOUT, printing dots to Serial. If it can't connect, it carries on
+  offline (the actuator rules still run) and the ESP32 keeps retrying in the background.
   After the first connection, the ESP32 reconnects automatically if Wi-Fi drops.
 */
 void connectWiFi() {
@@ -216,10 +216,10 @@ void connectWiFi() {
     delay(500);
     Serial.print(".");
   }
+  // Keep going without Wi-Fi: the actuator rules run offline, and auto-reconnect picks the network up later.
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("\nWi-Fi failed, restarting");
-    delay(1000);
-    ESP.restart();
+    Serial.println("\nWi-Fi not connected yet; running offline and retrying in the background");
+    return;
   }
   Serial.printf("\nWi-Fi OK, IP %s\n", WiFi.localIP().toString().c_str());
 }
@@ -305,6 +305,7 @@ void setupMqtt() {
   mqtt.setCallback(onMessage);
   mqtt.setBufferSize(512);
   mqtt.setKeepAlive(30);
+  mqtt.setSocketTimeout(5);  // seconds; bounds how long a stalled connect/read can block loop()
 }
 
 /*
@@ -334,9 +335,16 @@ void loop() {
   // If the MQTT client is not connected, attempt to reconnect every 5 seconds.
   if (!mqtt.connected()) {
     uint32_t now = millis();
+    // Auto-reconnect doesn't always retry if the first connection at boot never succeeded, so nudge it.
+    static uint32_t lastWifiNudge = 0;
+    if (WiFi.status() != WL_CONNECTED && now - lastWifiNudge >= 30000UL) {
+      lastWifiNudge = now;
+      WiFi.reconnect();
+    }
     if (now - lastMqttAttempt >= MQTT_RETRY_INTERVAL) {
       lastMqttAttempt = now;
-      if (WiFi.status() == WL_CONNECTED) connectMqtt();
+      // Never block on a reconnect while the pump is on: tick() must be free to switch it off on time.
+      if (WiFi.status() == WL_CONNECTED && !actuators::pumpRunning()) connectMqtt();
     }
     return;
   }

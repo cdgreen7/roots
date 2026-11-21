@@ -4,13 +4,6 @@ ESP32 firmware for a Roots plant board.
 
 Reads a capacitive soil moisture sensor, an AHT20 temperature/humidity sensor, and a TSL2591 light sensor, and publishes the readings as JSON over MQTT every 10 seconds. The Roots backend (`server/`) subscribes and stores them. It also drives the water pump, grow light and fan (see [Actuators](#actuators)).
 
-## Hardware
-
-- ESP32 DevKit V1 (ESP-WROOM-32)
-- Capacitive soil moisture sensor (TLC555I based, v2.0.0)
-- AHT20 temperature/humidity sensor (I2C)
-- TSL2591 light sensor (I2C)
-
 ## Wiring
 
 | Sensor | Pin | ESP32 |
@@ -24,9 +17,6 @@ Reads a capacitive soil moisture sensor, an AHT20 temperature/humidity sensor, a
 | TSL2591 | SCL | GPIO22 |
 | TSL2591 | VCC / GND | 3.3V / GND |
 
-The AHT20 and TSL2591 share the I2C bus (addresses 0x38 and 0x29), so wire both to GPIO21/22.
-
-GPIO34 is an input-only ADC1 pin, chosen so analog reads stay reliable alongside WiFi.
 
 ## Setup
 

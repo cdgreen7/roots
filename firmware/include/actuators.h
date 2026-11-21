@@ -27,12 +27,14 @@ void update(const Readings& r);             // run auto rules with fresh reading
 void tick();                                // timers / safety cut-offs; call every loop()
 bool handleCommand(JsonDocument& cmd);      // returns true if the command was an actuator command
 void publishAll();                          // retained state + rules (call on MQTT connect)
+bool pumpRunning();                         // true while the pump output is on
 #else // Actuators disabled, compile the functions with nothing in them so the rest of the code doesn't need #if ACTUATORS_ENABLED checks (and no overhead for sensor-only boards).
 inline void begin(PublishFn) {}
 inline void update(const Readings&) {}
 inline void tick() {}
 inline bool handleCommand(JsonDocument&) { return false; }
 inline void publishAll() {}
+inline bool pumpRunning() { return false; }
 #endif
 
 }  // namespace actuators

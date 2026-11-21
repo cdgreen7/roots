@@ -173,6 +173,16 @@ static void loadRules() {
 }
 
 /*
+  setPumpFault sets or clears the pump fault and saves it to NVS, so a reboot (or a brownout
+  from the pump) doesn't clear it and dry-run the pump again.
+*/
+static void setPumpFault(bool fault) {
+  pumpFault = fault;
+  prefs.putBool("pfault", fault);
+  stateDirty = true;
+}
+
+/*
   Publishing
 */
 
@@ -234,6 +244,12 @@ void publishAll() {
 }
 
 /*
+  pumpRunning returns true while the pump is on. main.cpp skips MQTT reconnects while it is,
+  because a blocking TLS connect would stop tick() from switching the pump off on time.
+*/
+bool pumpRunning() { return acts[PUMP].on; }
+
+/*
   Automatic rules take the latest sensor readings and decide whether to turn each actuator on or off.
   Called from update() after each sensor read, and from tick() after a manual override expires.
 */
@@ -274,8 +290,7 @@ static void autoPump(const Readings& r) {
     if (pulses >= rules.maxPulses) {
       // Pumped several times and soil still dry: empty reservoir, kinked tube, or sensor out of the pot.
       watering = false;
-      pumpFault = true;
-      stateDirty = true;
+      setPumpFault(true);
       Serial.println("[act] PUMP FAULT: soil not responding, auto watering disabled");
       return;
     }
@@ -450,7 +465,7 @@ bool handleCommand(JsonDocument& c) {
   const char* cmd = c["cmd"] | "";
   if      (strcmp(cmd, "actuator") == 0)  cmdActuator(c);
   else if (strcmp(cmd, "rules") == 0)     cmdRules(c);
-  else if (strcmp(cmd, "pump_reset") == 0) { pumpFault = false; stateDirty = true; publishState(); }
+  else if (strcmp(cmd, "pump_reset") == 0) { setPumpFault(false); publishState(); }
   else if (strcmp(cmd, "actuators") == 0) publishAll();
   else return false;
   return true;
@@ -469,6 +484,8 @@ void begin(PublishFn publish) {
   }
   prefs.begin("roots", false);
   loadRules();
+  pumpFault = prefs.getBool("pfault", false);
+  if (pumpFault) Serial.println("[act] pump fault still set from before reboot; send pump_reset to clear");
 }
 
 }  // namespace actuators
