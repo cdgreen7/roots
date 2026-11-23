@@ -1,0 +1,10 @@
+# Caddy: HTTPS in front of the Roots API.
+# Caddy gets a Let's Encrypt certificate for this domain on first start and renews it automatically.
+# Mosquitto reads the same certificate (see mosquitto.conf), so only Let's Encrypt is used as the issuer.
+{
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
+}
+
+roots-plants.duckdns.org {
+	reverse_proxy api:8000
+}

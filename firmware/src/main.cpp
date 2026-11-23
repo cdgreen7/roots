@@ -6,25 +6,29 @@
   It also listens for commands via MQTT to trigger readings or change the data send interval.
 
 
-  Note: the DHT sensor is read only once per data send interval to avoid overloading it, as it can be slow and unreliable if read too frequently.
   Note: Debug statements are printed to the Serial console for monitoring and troubleshooting, these get dropped if no Serial monitor is connected.
 */
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include <DHT.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
+#include <Adafruit_AHTX0.h>
 #include <Adafruit_TSL2591.h>
 #include "config.h"
+#include "ca_cert.h"
+#include "readings.h"
+#include "actuators.h"
 
 /*
   Globals
 */
-WiFiClient net;
+WiFiClientSecure net;   // TLS connection to the broker
 PubSubClient mqtt(net);
-DHT dht(PIN_DHT, DHT_TYPE);
+Adafruit_AHTX0 aht;
+bool ahtFound = false;
 Adafruit_TSL2591 tsl(2591);
 bool tslFound = false;
 
@@ -34,21 +38,7 @@ String topicSensorData, topicStatus, topicCmd;
 uint32_t dataSendIntervalMS = SENSOR_DATA_SEND_INTERVAL;
 uint32_t lastSend = 0;
 uint32_t lastMqttAttempt = 0;
-
-/*
-  Readings struct holds the latest sensor readings.
-  This is what gets serialized to JSON and sent to the backend.
-*/
-struct Readings {
-  bool  dhtOk;
-  float tempC;
-  float humidity;
-  int   soilRaw;
-  float soilPct;
-  bool  lightOk;
-  float lux;
-};
-
+uint32_t lastControl = 0;
 
 /*
   readAnalogAvg reads the given pin multiple times and returns the average. 
@@ -104,13 +94,23 @@ static float readLux() {
 
 
 /*
+  readClimate reads temperature and humidity from the AHT20 into the given Readings.
+  Sets climateOk to false (and both values to NAN) if the sensor isn't found or the read fails.
+*/
+static void readClimate(Readings& read) {
+  sensors_event_t humidity, temperature;
+  read.climateOk = ahtFound && aht.getEvent(&humidity, &temperature);
+  read.tempC     = read.climateOk ? temperature.temperature : NAN;
+  read.humidity  = read.climateOk ? humidity.relative_humidity : NAN;
+}
+
+
+/*
   readSensors reads all the sensors and returns a Readings struct with the latest values.
 */
 Readings readSensors() {
   Readings read;
-  read.tempC    = dht.readTemperature();
-  read.humidity = dht.readHumidity();
-  read.dhtOk    = !isnan(read.tempC) && !isnan(read.humidity);
+  readClimate(read);
 
   read.soilRaw  = readAnalogAvg(PIN_SOIL);
   read.soilPct  = toPercent(read.soilRaw, SOIL_RAW_DRY, SOIL_RAW_WET);
@@ -124,7 +124,7 @@ Readings readSensors() {
 /*
   sendData reads the sensors, serializes the readings to JSON, and publishes them to the MQTT broker.
   calls readSensors() to get the latest readings, then constructs a JSON document with the device ID, uptime, and sensor values.
-  If the DHT sensor read fails, it sets the temperature and humidity fields to null in the JSON document, which the backend can interpret as a failed reading.
+  If the AHT20 read fails, it sets the temperature and humidity fields to null in the JSON document, which the backend can interpret as a failed reading.
 */
 void sendData() {
   Readings read = readSensors();
@@ -133,8 +133,8 @@ void sendData() {
   // Add the device ID and uptime in seconds to the JSON document.
   sensorData["device_id"] = deviceId;
   sensorData["uptime_s"]  = millis() / 1000;
-  // Add the sensor readings to the JSON document. If the DHT sensor read failed, set the temperature and humidity fields to null.
-  if (read.dhtOk) {
+  // Add the sensor readings to the JSON document. If the AHT20 read failed, set the temperature and humidity fields to null.
+  if (read.climateOk) {
     sensorData["temp_c"]   = serialized(String(read.tempC, 1));
     sensorData["humidity"] = serialized(String(read.humidity, 1));
   } else {
@@ -151,8 +151,10 @@ void sendData() {
     sensorData["light_lux"] = nullptr;
   }
   sensorData["rssi"] = WiFi.RSSI();
+  // Tells the backend whether this board drives actuators, so the app only shows controls when it does.
+  sensorData["has_actuators"] = (bool)ACTUATORS_ENABLED;
   // Serialize the JSON document to a buffer and publish it to the MQTT broker. Print the result to Serial for debugging.
-  // At most, the buffer should be less than 180 bytes, but we use 256 to be safe. 
+  // At most, the buffer should be less than 210 bytes, but we use 256 to be safe. 
   char buf[256];
   size_t n = serializeJson(sensorData, buf, sizeof(buf));
   // If the serialized JSON somehow exceeds the buffer size, print an error and return without publishing.
@@ -160,7 +162,9 @@ void sendData() {
     Serial.println("[pub FAIL] payload truncated");
     return;
   }
-  bool ok = mqtt.publish(topicSensorData.c_str(), buf, n);
+  // Cast to uint8_t* so this hits the (payload, length, retained) overload; with a char* the
+  // length silently becomes the "retained" flag and every reading gets retained on the broker.
+  bool ok = mqtt.publish(topicSensorData.c_str(), (const uint8_t*)buf, n, false);
   Serial.printf("[pub %s] %s\n", ok ? "OK" : "FAIL", buf);
 }
 
@@ -192,15 +196,15 @@ void onMessage(char* topic, byte* payload, unsigned int len) {
     } else {
       Serial.printf("[cmd] interval out of range (5-3600): %lu\n", (unsigned long)s);
     }
-  } else {
+  } else if (!actuators::handleCommand(command)) {
     Serial.printf("[cmd] unknown: %s\n", cmd);
   }
 }
 
 /*
   connectWiFi connects to the Wi-Fi network using the credentials in secrets.h.
-  Waits up to WIFI_CONNECT_TIMEOUT, printing dots to Serial. If it can't connect,
-  it restarts the board to try again from a clean state.
+  Waits up to WIFI_CONNECT_TIMEOUT, printing dots to Serial. If it can't connect, it carries on
+  offline (the actuator rules still run) and the ESP32 keeps retrying in the background.
   After the first connection, the ESP32 reconnects automatically if Wi-Fi drops.
 */
 void connectWiFi() {
@@ -214,10 +218,10 @@ void connectWiFi() {
     delay(500);
     Serial.print(".");
   }
+  // Keep going without Wi-Fi: the actuator rules run offline, and auto-reconnect picks the network up later.
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("\nWi-Fi failed, restarting");
-    delay(1000);
-    ESP.restart();
+    Serial.println("\nWi-Fi not connected yet; running offline and retrying in the background");
+    return;
   }
   Serial.printf("\nWi-Fi OK, IP %s\n", WiFi.localIP().toString().c_str());
 }
@@ -240,6 +244,7 @@ bool connectMqtt() {
     mqtt.publish(topicStatus.c_str(), "online", true);
     mqtt.subscribe(topicCmd.c_str(), 1);
     Serial.println("MQTT connected");
+    actuators::publishAll();
   } else {
     Serial.printf("MQTT failed, rc=%d\n", mqtt.state());
   }
@@ -247,14 +252,16 @@ bool connectMqtt() {
 }
 
 /*
-  setupSensors initializes the ADC, the DHT sensor, and the TSL2591 light sensor over I2C.
+  setupSensors initializes the ADC, then the AHT20 temperature/humidity sensor and the TSL2591 light sensor on the shared I2C bus.
 */
 void setupSensors() {
   analogReadResolution(12);         // 0-4095
   analogSetAttenuation(ADC_11db);   // full 0-3.3 V range
-  dht.begin();
 
-  Wire.begin(PIN_LUX_SDA, PIN_LUX_SCL);
+  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+  ahtFound = aht.begin(&Wire);
+  Serial.println(ahtFound ? "AHT20 found" : "AHT20 NOT found! Check SDA/SCL wiring");
+
   tslFound = tsl.begin();
   if (tslFound) {
     tsl.setTiming(TSL2591_INTEGRATIONTIME_100MS);
@@ -283,13 +290,24 @@ void setupDeviceId() {
 }
 
 /*
+  mqttPublish publishes to roots/<deviceId>/<subtopic>. Passed to the actuator module.
+*/
+bool mqttPublish(const char* subtopic, const char* payload, bool retained) {
+  if (!mqtt.connected()) return false;
+  String topic = String(TOPIC_ROOT) + "/" + deviceId + "/" + subtopic;
+  return mqtt.publish(topic.c_str(), payload, retained);
+}
+
+/*
   setupMqtt configures the MQTT client. The actual connection happens in loop().
 */
 void setupMqtt() {
+  net.setCACert(ROOT_CA);   // only trust a broker certificate signed by Let's Encrypt
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(onMessage);
   mqtt.setBufferSize(512);
   mqtt.setKeepAlive(30);
+  mqtt.setSocketTimeout(5);  // seconds; bounds how long a stalled connect/read can block loop()
 }
 
 /*
@@ -297,8 +315,10 @@ void setupMqtt() {
 */
 void setup() {
   Serial.begin(115200);
+  actuators::begin(mqttPublish);    // first, so every output is held OFF from boot
   setupSensors();
   connectWiFi();
+  configTzTime(TZ_INFO, NTP_SERVER1, NTP_SERVER2);  // clock for the grow light schedule
   setupDeviceId();
   setupMqtt();
 }
@@ -307,13 +327,26 @@ void setup() {
   loop runs the main application logic, handling MQTT connection management and sensor data transmission.
 */
 void loop() {
+  // Actuator timers and local control run even when MQTT/Wi-Fi is down.
+  actuators::tick();
+  if (millis() - lastControl >= CONTROL_INTERVAL) {
+    lastControl = millis();
+    actuators::update(readSensors());
+  }
+
   // If the MQTT client is not connected, attempt to reconnect every 5 seconds.
   if (!mqtt.connected()) {
     uint32_t now = millis();
-    // If 5 seconds have passed since the last attempt, try to connect to the MQTT broker.
-      if (now - lastMqttAttempt >= MQTT_RETRY_INTERVAL) {
+    // Auto-reconnect doesn't always retry if the first connection at boot never succeeded, so nudge it.
+    static uint32_t lastWifiNudge = 0;
+    if (WiFi.status() != WL_CONNECTED && now - lastWifiNudge >= 30000UL) {
+      lastWifiNudge = now;
+      WiFi.reconnect();
+    }
+    if (now - lastMqttAttempt >= MQTT_RETRY_INTERVAL) {
       lastMqttAttempt = now;
-      if (WiFi.status() == WL_CONNECTED) connectMqtt();
+      // Never block on a reconnect while the pump is on: tick() must be free to switch it off on time.
+      if (WiFi.status() == WL_CONNECTED && !actuators::pumpRunning()) connectMqtt();
     }
     return;
   }

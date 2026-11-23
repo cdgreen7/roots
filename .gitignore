@@ -18,3 +18,6 @@ Thumbs.db
 server/mosquitto/passwd
 server/mosquitto/data/
 __pycache__/
+
+# Post images saved by the API when run outside Docker
+server/api/uploads/
