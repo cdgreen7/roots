@@ -5,6 +5,8 @@ import {StyleSheet, Text, View, ImageBackground, ScrollView, FlatList, Pressable
 import plantimage from '../../../assets/images/plant.png';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlants } from '../context';
+import { cToF, show } from '../../utils/units';
+import { PlantReadings, getRecentReadings } from '../../api/readings';
 
 type SensorRange = {
     min: number;
@@ -128,13 +130,24 @@ export default function DataDashboard() {
     );
 
     
+    // current day's readings for selected plant (last 24 hrs)
+    const [day, setDay] = useState<PlantReadings | null>(null);
+    useEffect(() => {
+        if (selectedPlant === null) return;
+        let cancelled = false; // ignore a slow answer for a plant that's no longer selected
+        getRecentReadings(selectedPlant, 24)
+            .then(data => { if (!cancelled) setDay(data); })
+            .catch(() => { if (!cancelled) setDay(null); });
+        return () => { cancelled = true; };
+    }, [selectedPlant]);
 
-    // current plant sensor data
+    // newest reading, uses unit functions from utils/units.ts to convert and format readings for display
+    const current = day?.current;
     const currentData = {
-        temperature: currentPlant?.temperature ?? 0,
-        humidity: 0,
-        sunlight: 0,
-        moisture: currentPlant?.moisture ?? 0,
+        temperature: show(cToF(current?.temp)),
+        humidity: show(current?.humidity),
+        sunlight: show(day?.sunlight_hours),
+        moisture: show(current?.soil_moisture),
     };
 
 

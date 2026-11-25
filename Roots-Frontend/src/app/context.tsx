@@ -3,10 +3,14 @@ import { apiRequest } from '../api/client';
 
 export type Plant = {
     id: string;
+    owner_id: string;
     name: string;
-    moisture: number;
-    temperature: number;
-    health: string;
+    device_id: string | null;
+    online: boolean;
+    has_actuators: boolean;
+    last_seen_at: string | null;
+    created_at: string;
+    health: 'healthy' | 'unhealthy';
 };
 
 type PlantContextType = {

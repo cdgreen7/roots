@@ -2,11 +2,25 @@ import { globalStyles } from '@/styles/global';
 import { Text, ScrollView, View, StyleSheet } from 'react-native';
 import HomeHeader from '../../components/HomeHeader';
 import { usePlants } from '../context';
+import { useEffect, useState } from 'react';
+import { PlantAlert, getAlerts } from '../../api/alerts';
 
 export default function HomeScreen() {
 
   // Retrieve shared plant data from Context
   const { plants } = usePlants();
+
+  // What's wrong with each unhealthy plant (GET /alerts), keyed by plant id.
+  const [alertsByPlant, setAlertsByPlant] = useState<Record<string, PlantAlert[]>>({});
+  useEffect(() => {
+    const unhealthy = plants.filter(plant => plant.health === 'unhealthy');
+    let cancelled = false;
+    Promise.all(unhealthy.map(plant => getAlerts(plant.id).catch(() => [] as PlantAlert[])))
+      .then(lists => {
+        if (!cancelled) setAlertsByPlant(Object.fromEntries(unhealthy.map((plant, i) => [plant.id, lists[i]])));
+      });
+    return () => { cancelled = true; };
+  }, [plants]);
 
   // Calculate plant counts
   const plantCount = plants.length;
@@ -72,14 +86,9 @@ export default function HomeScreen() {
               <Text style={styles.plantName}>
                 {plant.name}
               </Text>
-
-              <Text>
-                Soil Moisture: {plant.moisture}%
-              </Text>
-
-              <Text>
-                Temperature: {plant.temperature}°C
-              </Text>
+                {(alertsByPlant[plant.id] ?? []).map(alert => (
+                <Text key={alert.type}>{alert.message}</Text>
+              ))}
             </View>
           ))
         ) : (
