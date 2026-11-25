@@ -8,28 +8,14 @@ import { usePlants } from '../context';
 import { cToF, show } from '../../utils/units';
 import { PlantReadings, getRecentReadings } from '../../api/readings';
 
-type SensorRange = {
-    min: number;
-    max: number;
-    avg: number;
-};
-
-type PlantReadingResponse = {
-    ranges: {
-        temperature?: SensorRange;
-        humidity?: SensorRange;
-        sunlight?: SensorRange;
-        moisture?: SensorRange;
-    };
-};
-
 type PastData = {
     id: string;
     date: string;
-    temperature: number;
-    humidity: number;
-    sunlight: number;
-    moisture: number;
+    temperature: number | null; 
+    humidity: number | null;    
+    sunlight: number;          
+    moisture: number | null;   
+    count: number;              
 };
 
 export default function DataDashboard() {
@@ -56,62 +42,38 @@ export default function DataDashboard() {
         }
     }, [plants, selectedPlant]);
 
-    // load historical readings for selected plant
+    // load the last 5 days for the selected plant: one 24-hour window per card, all requested at once
     const loadPastData = async (plantId: string) => {
+        setHistoryLoading(true);
+        setHistoryError(null);
         try {
-            setHistoryLoading(true);
-            setHistoryError(null);
-            setPastData([]);
-
-            const results: PastData[] = [];
-            const now = new Date();
-
-            console.log('Loading historical data for plant:', plantId);
-
-            for (let day = 1; day <= 5; day++) {
-
-                const until = new Date(now);
-                until.setDate(now.getDate() - (day - 1));
-
-                const since = new Date(now);
-                since.setDate(now.getDate() - day);
-
-                const params = new URLSearchParams({
-                    plant_id: plantId,
-                    since: since.toISOString(),
-                    until: until.toISOString(),
-                    limit: '1',
+            const now = Date.now();
+            const DAY_MS = 24 * 60 * 60 * 1000;
+            const days = await Promise.all([1, 2, 3, 4, 5].map(async (day): Promise<PastData> => {
+                // limit=1: only ranges and sunlight_hours are used, and they cover the whole window anyway
+                const response = await apiRequest<PlantReadings>('/plant_readings', {
+                    query: {
+                        plant_id: plantId,
+                        since: new Date(now - day * DAY_MS).toISOString(),
+                        until: new Date(now - (day - 1) * DAY_MS).toISOString(),
+                        limit: 1,
+                    },
                 });
-
-                console.log('Request:', `/plant_readings?${params}`);
-
-                const response =
-                    await apiRequest<PlantReadingResponse>(
-                        `/plant_readings?${params.toString()}`
-                    );
-
-                // Debug API response
-                console.log(`Day ${day} response:`, response);
-
-                const newData: PastData = {
+                const { ranges } = response;
+                return {
                     id: String(day),
-                    date: day === 1 ? 'Yesterday' : `${day} days ago`,
-
-                    temperature: response?.ranges?.temperature?.avg ?? 0,
-                    humidity: response?.ranges?.humidity?.avg ?? 0,
-                    sunlight: response?.ranges?.sunlight?.avg ?? 0,
-                    moisture: response?.ranges?.moisture?.avg ?? 0,
+                    date: day === 1 ? 'Last 24 hours' : `${day} days ago`,
+                    temperature: cToF(ranges.temp.avg),
+                    humidity: ranges.humidity.avg,
+                    sunlight: response.sunlight_hours,
+                    moisture: ranges.soil_moisture.avg,
+                    count: ranges.count,
                 };
-
-                results.push(newData);
-
-                // Update cards as each request completes
-                setPastData([...results]);
-            }
-
+            }));
+            setPastData(days);
         } catch (err) {
-            console.error('Error loading past readings:', err);
-            setHistoryError('Unable to load historical readings. Check console.');
+            setPastData([]);
+            setHistoryError(err instanceof Error ? err.message : 'Unable to load historical readings.');
         } finally {
             setHistoryLoading(false);
         }
@@ -252,7 +214,7 @@ export default function DataDashboard() {
         {historyError && (
             <Text>{historyError}</Text>
         )}
-        <FlatList
+                <FlatList
             data={pastData}
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -263,21 +225,27 @@ export default function DataDashboard() {
                         {item.date}
                     </Text>
 
-                    <Text style={styles.historyCardSubText}>
-                        Temperature: {item.temperature.toFixed(1)}°F
-                    </Text>
+                    {item.count === 0 ? (
+                        <Text style={styles.historyCardSubText}>No data</Text>
+                    ) : (
+                        <>
+                            <Text style={styles.historyCardSubText}>
+                                Temperature: {show(item.temperature)}°F
+                            </Text>
 
-                    <Text style={styles.historyCardSubText}>
-                        Humidity: {item.humidity.toFixed(1)}%
-                    </Text>
+                            <Text style={styles.historyCardSubText}>
+                                Humidity: {show(item.humidity)}%
+                            </Text>
 
-                    <Text style={styles.historyCardSubText}>
-                        Sunlight: {item.sunlight.toFixed(1)} hrs
-                    </Text>
+                            <Text style={styles.historyCardSubText}>
+                                Sunlight: {show(item.sunlight)} hrs
+                            </Text>
 
-                    <Text style={styles.historyCardSubText}>
-                        Moisture: {item.moisture.toFixed(1)}%
-                    </Text>
+                            <Text style={styles.historyCardSubText}>
+                                Moisture: {show(item.moisture)}%
+                            </Text>
+                        </>
+                    )}
                 </View>
             )}
         />
