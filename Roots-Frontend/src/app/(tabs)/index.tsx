@@ -8,7 +8,12 @@ import { PlantAlert, getAlerts } from '../../api/alerts';
 export default function HomeScreen() {
 
   // Retrieve shared plant data from Context
-  const { plants } = usePlants();
+  const { plants, loadPlants } = usePlants();
+
+  // Load plants when the dashboard opens (as it should be the first tab after login).
+  useEffect(() => {
+    loadPlants();
+  }, [loadPlants]);
 
   // What's wrong with each unhealthy plant (GET /alerts), keyed by plant id.
   const [alertsByPlant, setAlertsByPlant] = useState<Record<string, PlantAlert[]>>({});
