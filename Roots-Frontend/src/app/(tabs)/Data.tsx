@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { apiRequest } from '@/api/client';
 import { globalStyles } from '@/styles/global';
 import {StyleSheet, Text, View, ImageBackground, ScrollView, FlatList, Pressable,} from 'react-native';
-import plantimage from '../../../assets/images/plant.png';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlants } from '../context';
 import { cToF, show } from '../../utils/units';
 import { PlantReadings, getRecentReadings } from '../../api/readings';
 
+
+const plantimage = require('../../../assets/images/plant.png');
 type PastData = {
     id: string;
     date: string;

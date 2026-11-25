@@ -81,7 +81,7 @@ export default function HomeScreen() {
       </View>
 
       {/* Plant Care */}
-      <View style={globalStyles.section}>
+      <View>
         <Text style={globalStyles.sectionTitle}>Plant Care</Text>
 
 

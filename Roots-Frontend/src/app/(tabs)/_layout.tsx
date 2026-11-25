@@ -22,7 +22,7 @@ export default function TabLayout() {
           options={{
             title: 'Home',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name='home' size={size} color={color} />
+              <Ionicons name='home' size={size} color={color as string} />
             ),
           }}
         />
@@ -32,7 +32,7 @@ export default function TabLayout() {
           options={{
             title: 'Data',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name='list' size={size} color={color} />
+              <Ionicons name='list' size={size} color={color as string} />
             ),
           }}
         />
@@ -42,7 +42,7 @@ export default function TabLayout() {
           options={{
             title: 'Schedule',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name='calendar' size={size} color={color} />
+              <Ionicons name='calendar' size={size} color={color as string} />
             ),
           }}
         />
