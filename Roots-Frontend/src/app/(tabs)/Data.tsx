@@ -1,17 +1,46 @@
 import { useState, useEffect } from 'react';
+import { apiRequest } from '@/api/client';
 import { globalStyles } from '@/styles/global';
 import {StyleSheet, Text, View, ImageBackground, ScrollView, FlatList, Pressable,} from 'react-native';
 import plantimage from '../../../assets/images/plant.png';
 import { Ionicons } from '@expo/vector-icons';
 import { usePlants } from '../context';
 
+type SensorRange = {
+    min: number;
+    max: number;
+    avg: number;
+};
+
+type PlantReadingResponse = {
+    ranges: {
+        temperature?: SensorRange;
+        humidity?: SensorRange;
+        sunlight?: SensorRange;
+        moisture?: SensorRange;
+    };
+};
+
+type PastData = {
+    id: string;
+    date: string;
+    temperature: number;
+    humidity: number;
+    sunlight: number;
+    moisture: number;
+};
+
 export default function DataDashboard() {
     //define variables for easy integration with sensor data
     const { plants, loading, error, loadPlants } = usePlants();
 
-    const [selectedPlant, setSelectedPlant] = useState<number | null>(null);
+    const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
     const [dropdownVisible, setDropdownVisible] = useState(false);
 
+    // Historical readings
+    const [pastData, setPastData] = useState<PastData[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState<string | null>(null);
 
     //load plants from backend
     useEffect(() => {
@@ -25,23 +54,88 @@ export default function DataDashboard() {
         }
     }, [plants, selectedPlant]);
 
+    // load historical readings for selected plant
+    const loadPastData = async (plantId: string) => {
+        try {
+            setHistoryLoading(true);
+            setHistoryError(null);
+            setPastData([]);
+
+            const results: PastData[] = [];
+            const now = new Date();
+
+            console.log('Loading historical data for plant:', plantId);
+
+            for (let day = 1; day <= 5; day++) {
+
+                const until = new Date(now);
+                until.setDate(now.getDate() - (day - 1));
+
+                const since = new Date(now);
+                since.setDate(now.getDate() - day);
+
+                const params = new URLSearchParams({
+                    plant_id: plantId,
+                    since: since.toISOString(),
+                    until: until.toISOString(),
+                    limit: '1',
+                });
+
+                console.log('Request:', `/plant_readings?${params}`);
+
+                const response =
+                    await apiRequest<PlantReadingResponse>(
+                        `/plant_readings?${params.toString()}`
+                    );
+
+                // Debug API response
+                console.log(`Day ${day} response:`, response);
+
+                const newData: PastData = {
+                    id: String(day),
+                    date: day === 1 ? 'Yesterday' : `${day} days ago`,
+
+                    temperature: response?.ranges?.temperature?.avg ?? 0,
+                    humidity: response?.ranges?.humidity?.avg ?? 0,
+                    sunlight: response?.ranges?.sunlight?.avg ?? 0,
+                    moisture: response?.ranges?.moisture?.avg ?? 0,
+                };
+
+                results.push(newData);
+
+                // Update cards as each request completes
+                setPastData([...results]);
+            }
+
+        } catch (err) {
+            console.error('Error loading past readings:', err);
+            setHistoryError('Unable to load historical readings. Check console.');
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    // reload historical data whenever selected plant changes
+    useEffect(() => {
+        if (selectedPlant !== null) {
+            loadPastData(selectedPlant);
+        }
+    }, [selectedPlant]);
+
     // currently selected plant
     const currentPlant = plants.find(
         plant => plant.id === selectedPlant
     );
 
-    // historical data (temp)
+    
+
+    // current plant sensor data
     const currentData = {
         temperature: currentPlant?.temperature ?? 0,
         humidity: 0,
         sunlight: 0,
         moisture: currentPlant?.moisture ?? 0,
     };
-
-    const pastData = [
-        { id: '1', date: 'Yesterday', temperature: 22 },
-        { id: '2', date: '2 days ago', temperature: 21 },
-    ];
 
 
     if (loading) {
@@ -135,7 +229,16 @@ export default function DataDashboard() {
 
 
         <Text style={globalStyles.sectionTitle}>Past Average Data</Text>
-        {/*----------will need to replace with actual past data (avered per day, so past 5 days)*/}
+        {!historyLoading && !historyError && pastData.length === 0 && (
+            <Text>No historical data available.</Text>
+        )}
+        {historyLoading && (
+            <Text>Loading historical data...</Text>
+        )}
+
+        {historyError && (
+            <Text>{historyError}</Text>
+        )}
         <FlatList
             data={pastData}
             horizontal
@@ -143,9 +246,24 @@ export default function DataDashboard() {
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
                 <View style={styles.historyCard}>
-                    <Text style={styles.historyCardTitle}>{item.date}</Text>
+                    <Text style={styles.historyCardTitle}>
+                        {item.date}
+                    </Text>
+
                     <Text style={styles.historyCardSubText}>
-                        {item.temperature}°F
+                        Temperature: {item.temperature.toFixed(1)}°F
+                    </Text>
+
+                    <Text style={styles.historyCardSubText}>
+                        Humidity: {item.humidity.toFixed(1)}%
+                    </Text>
+
+                    <Text style={styles.historyCardSubText}>
+                        Sunlight: {item.sunlight.toFixed(1)} hrs
+                    </Text>
+
+                    <Text style={styles.historyCardSubText}>
+                        Moisture: {item.moisture.toFixed(1)}%
                     </Text>
                 </View>
             )}
@@ -185,7 +303,7 @@ const styles = StyleSheet.create({
     },
     historyCard: {
         width: 300, 
-        height: 200, 
+        height: 240, 
         backgroundColor: '#18491498', 
         marginRight: 10, 
         borderRadius: 10, 
