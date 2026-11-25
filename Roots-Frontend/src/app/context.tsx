@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import { apiRequest } from '../api/client';
 
- export type Plant = {
-    id: number;
+export type Plant = {
+    id: string;
     name: string;
     moisture: number;
     temperature: number;
@@ -35,6 +35,8 @@ export function PlantProvider({ children }: { children: React.ReactNode }) {
             const data = await apiRequest<Plant[]>('/plants');
 
             console.log('Plants returned:', data);
+            console.log('First plant ID:', data[0]?.id);
+            console.log('Plant ID type:', typeof data[0]?.id);
 
             setPlants(data);
 
