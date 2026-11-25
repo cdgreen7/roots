@@ -6,6 +6,7 @@ from uuid import UUID
 
 import asyncpg
 
+from .. import config
 from ..data import boards, plants, readings, users
 from .errors import Conflict, NotFound
 
@@ -50,9 +51,18 @@ async def link_device(pool: asyncpg.Pool, user_id: UUID, device_id: str, plant_n
 
 async def list_plants(pool: asyncpg.Pool, user_id: UUID) -> list[dict]:
     """
-    list_plants returns the user's own plants.
+    list_plants returns the user's own plants, each with health: "healthy" if it has no alerts,
+    otherwise "unhealthy" (GET /alerts says what's wrong).
     """
-    return [dict(p) for p in await plants.list_plants(pool, user_id)]
+    from . import alerts  # imported here because alerts imports this module
+
+    result = []
+    for row in await plants.list_plants(pool, user_id):
+        plant = dict(row)
+        plant_alerts = await alerts.plant_alerts(pool, user_id, plant["id"])
+        plant["health"] = "unhealthy" if plant_alerts else "healthy"
+        result.append(plant)
+    return result
 
 
 def _ranges(row: asyncpg.Record) -> dict:
@@ -79,14 +89,17 @@ async def plant_readings(pool: asyncpg.Pool, user_id: UUID, plant_id: UUID, sinc
       current - the newest reading (None if the board hasn't sent one)
       history - readings in the since/until window, newest first, up to limit
       ranges  - the minimum, maximum, and average of each metric over the whole window
+      sunlight_hours - hours in the window with at least config.SUNLIGHT_LUX lux
     """
     await viewable_plant(pool, user_id, plant_id)
     latest = await readings.get_readings(pool, plant_id, None, None, 1)
     history = await readings.get_readings(pool, plant_id, since, until, limit)
     ranges = await readings.get_ranges(pool, plant_id, since, until)
+    sunlight = await readings.sunlight_hours(pool, plant_id, since, until, config.SUNLIGHT_LUX)
     return {
         "plant_id": plant_id,
         "current": dict(latest[0]) if latest else None,
         "history": [dict(r) for r in history],
         "ranges": _ranges(ranges),
+        "sunlight_hours": sunlight,
     }

@@ -6,9 +6,12 @@ from uuid import UUID
 
 import asyncpg
 
-# The measured columns, in the order the app shows them.
+# The measured columns, in the order the app should show them.
 METRICS = ("temp", "humidity", "soil_moisture", "light")
 
+# Longest a single reading counts toward sunlight_hours. Boards send every 10 s, so a longer gap
+# means the board was offline, and that time shouldn't count as light.
+MAX_READING_GAP_S = 60
 
 async def insert_reading(pool: asyncpg.Pool, device_id: str, reading: dict) -> bool:
     """
@@ -67,3 +70,27 @@ async def get_ranges(pool: asyncpg.Pool, plant_id: UUID, since: datetime | None,
         """,
         plant_id, since, until,
     )
+
+async def sunlight_hours(pool: asyncpg.Pool, plant_id: UUID, since: datetime | None,
+                         until: datetime | None, lux_threshold: float) -> float:
+    """
+    sunlight_hours returns how many hours in the since/until window the plant had at least lux_threshold lux,
+    rounded to one decimal place. Each reading counts from when it was taken until the next one
+    (or the end of the window), up to MAX_READING_GAP_S.
+    """
+    hours = await pool.fetchval(
+        """
+        SELECT coalesce(sum(least(extract(epoch FROM next_at - recorded_at)::float8, $5::float8))
+                        FILTER (WHERE light >= $4::float8), 0) / 3600
+        FROM (
+            SELECT light, recorded_at,
+                   lead(recorded_at, 1, coalesce($3::timestamptz, now())) OVER (ORDER BY recorded_at) AS next_at
+            FROM readings
+            WHERE plant_id = $1
+              AND ($2::timestamptz IS NULL OR recorded_at >= $2)
+              AND ($3::timestamptz IS NULL OR recorded_at < $3)
+        ) r
+        """,
+        plant_id, since, until, lux_threshold, MAX_READING_GAP_S,
+    )
+    return round(float(hours), 1)

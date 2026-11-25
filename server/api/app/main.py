@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config, data
-from .api import auth, control, friends, plants, posts
+from .routes import auth, control, friends, plants, posts
 from .mqtt_bridge import MqttBridge
 from .services import errors
 

@@ -75,13 +75,10 @@ export default function WelcomeScreen() {
 
       // Save the token in memory so all future apiRequest calls include the Bearer header
       setAuthToken(data.token);
-
-      // Navigate into the main app tabs
+      setLoading(false);
+      // navigate to the main app (tabs) after successful login or registration
       router.replace('/(tabs)');
-    //API error handling
-    setLoading(false);
-      setAuthToken(data.token);
-      router.replace('/(tabs)');
+      // API Error handling
     } catch (error) {
 
       const title =
