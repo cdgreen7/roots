@@ -50,9 +50,17 @@ async def link_device(pool: asyncpg.Pool, user_id: UUID, device_id: str, plant_n
 
 async def list_plants(pool: asyncpg.Pool, user_id: UUID) -> list[dict]:
     """
-    list_plants returns the user's own plants.
+    list_plants returns the logged-in user's plants, with each board's online status and the plant's health.
     """
-    return [dict(p) for p in await plants.list_plants(pool, user_id)]
+    from . import alerts  # imported here because alerts imports this module
+
+    result = []
+    for row in await plants.list_plants(pool, user_id):
+        plant = dict(row)
+        plant_alerts = await alerts.plant_alerts(pool, user_id, plant["id"])
+        plant["health"] = "unhealthy" if plant_alerts else "healthy"
+        result.append(plant)
+    return result
 
 
 def _ranges(row: asyncpg.Record) -> dict:
