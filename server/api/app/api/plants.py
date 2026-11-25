@@ -34,7 +34,7 @@ async def link(pool: Pool, user_id: CurrentUser, body: Link):
 @router.get("/plants")
 async def list_plants(pool: Pool, user_id: CurrentUser):
     """
-    list_plants returns the logged-in user's plants, with each board's online status.
+    list_plants returns the logged-in user's plants, with each board's online status and the plant's health.
     """
     return await plants.list_plants(pool, user_id)
 
@@ -49,8 +49,8 @@ async def plant_readings(
     limit: int = Query(100, ge=1, le=5000),
 ):
     """
-    plant_readings returns the plant's sensor metrics: {current, history, ranges}. since/until are ISO 8601 timestamps,
-    for example 2026-10-12T00:00:00-08:00. History is newest first.
+    plant_readings returns the plant's sensor metrics: {current, history, ranges, sunlight_hours}.
+    since/until are ISO 8601 timestamps, for example 2026-10-12T00:00:00-08:00. History is newest first.
     """
     return await plants.plant_readings(pool, user_id, plant_id, since, until, limit)
 
