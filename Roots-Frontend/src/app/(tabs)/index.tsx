@@ -1,5 +1,7 @@
 import { globalStyles } from '@/styles/global';
-import { Text, ScrollView, View, StyleSheet } from 'react-native';
+import { Text, ScrollView, View, StyleSheet, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import HomeHeader from '../../components/HomeHeader';
 import { usePlants } from '../context';
 import { useEffect, useState } from 'react';
@@ -8,7 +10,8 @@ import { PlantAlert, getAlerts } from '../../api/alerts';
 export default function HomeScreen() {
 
   // Retrieve shared plant data from Context
-  const { plants, loadPlants } = usePlants();
+  const router = useRouter();
+  const { plants, loading, loadPlants } = usePlants();
 
   // Load plants when the dashboard opens (as it should be the first tab after login).
   useEffect(() => {
@@ -80,11 +83,20 @@ export default function HomeScreen() {
 
       </View>
 
+
+      {/* First run: no boards linked yet */}
+      {!loading && plantCount === 0 && (
+        <Pressable style={styles.addCard} onPress={() => router.push('/add-device')}>
+          <Ionicons name='leaf-outline' size={28} color='#27641f' />
+          <Text style={styles.addCardTitle}>No plants yet</Text>
+          <Text style={styles.addCardText}>Tap here to add your Roots board.</Text>
+        </Pressable>
+      )}
+
+
       {/* Plant Care */}
       <View>
         <Text style={globalStyles.sectionTitle}>Plant Care</Text>
-
-
         {unhealthyPlants.length > 0 ? (
           unhealthyPlants.map(plant => (
             <View key={plant.id} style={styles.plantCard}>
@@ -141,5 +153,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#FF6B35',
+  },
+    addCard: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 16,
+    padding: 24,
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  addCardTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#27641f',
+    marginTop: 8,
+  },
+  addCardText: {
+    fontSize: 15,
+    color: '#338a36',
+    marginTop: 4,
   },
 });

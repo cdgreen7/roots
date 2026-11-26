@@ -8,6 +8,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name='login' />
         <Stack.Screen name='(tabs)' />
+        <Stack.Screen name='add-device' options={{ presentation: 'modal', headerShown: true, title: 'Add device', headerTransparent: false }} />
       </Stack>
     </PlantProvider>
   );
