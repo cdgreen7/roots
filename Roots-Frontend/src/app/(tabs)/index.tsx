@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import HomeHeader from '../../components/HomeHeader';
 import { usePlants } from '../context';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useRefreshWhileFocused } from '../../hooks/useRefreshWhileFocused';
 import { PlantAlert, getAlerts } from '../../api/alerts';
 
 export default function HomeScreen() {
@@ -13,10 +14,14 @@ export default function HomeScreen() {
   const router = useRouter();
   const { plants, loading, loadPlants } = usePlants();
 
-  // Load plants when the dashboard opens (as it should be the first tab after login).
+    // Load plants when the dashboard opens (it's the first tab after login), with the loading state.
   useEffect(() => {
     loadPlants();
   }, [loadPlants]);
+
+  // after load, quietly refresh them when Home comes back into view and every 30 s.
+  const refreshPlants = useCallback(() => { loadPlants(true); }, [loadPlants]);
+  useRefreshWhileFocused(refreshPlants, 30_000);
 
   // What's wrong with each unhealthy plant (GET /alerts), keyed by plant id.
   const [alertsByPlant, setAlertsByPlant] = useState<Record<string, PlantAlert[]>>({});

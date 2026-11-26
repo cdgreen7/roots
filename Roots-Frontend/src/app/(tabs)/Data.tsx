@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRefreshWhileFocused } from '../../hooks/useRefreshWhileFocused';
 import { apiRequest } from '@/api/client';
 import { globalStyles } from '@/styles/global';
 import {StyleSheet, Text, View, ImageBackground, ScrollView, FlatList, Pressable,} from 'react-native';
@@ -50,15 +51,17 @@ export default function DataDashboard() {
     //define variables for easy integration with sensor data
     const { plants, loading, error, loadPlants } = usePlants();
 
-        // The plant picked in the dropdown. Until one is picked (or if it's gone), the first plant is shown.
+    // The plant picked in the dropdown. Until one is picked (or if it's gone), the first plant is shown.
     const [pickedPlant, setSelectedPlant] = useState<string | null>(null);
     const selectedPlant = plants.some(plant => plant.id === pickedPlant) ? pickedPlant : plants[0]?.id ?? null;
     const [dropdownVisible, setDropdownVisible] = useState(false);
 
-    //load plants from backend
+    // load plants when Data opens; quietly refresh them (online status) every 30 s while it's open
     useEffect(() => {
         loadPlants();
     }, [loadPlants]);
+    const refreshPlants = useCallback(() => { loadPlants(true); }, [loadPlants]);
+    useRefreshWhileFocused(refreshPlants, 30_000);
 
     // Historical readings, tagged with the plant they belong to so another plant's cards never show.
     const [past, setPast] = useState<{ plantId: string; days: PastData[]; error: string | null } | null>(null);
@@ -89,23 +92,24 @@ export default function DataDashboard() {
     );
 
     
-    // current day's readings for selected plant (last 24 hrs)
-    const [day, setDay] = useState<PlantReadings | null>(null);
-    useEffect(() => {
+    // current day's readings for selected plant (last 24 hrs), tagged with the plant they belong to.
+    // Refreshed every 10 s while Data is open, since the board sends a reading every 10 s.
+    const [day, setDay] = useState<{ plantId: string; data: PlantReadings } | null>(null);
+    const refreshReadings = useCallback(() => {
         if (selectedPlant === null) return;
-        let cancelled = false; // ignore a slow answer for a plant that's no longer selected
         getRecentReadings(selectedPlant, 24)
-            .then(data => { if (!cancelled) setDay(data); })
-            .catch(() => { if (!cancelled) setDay(null); });
-        return () => { cancelled = true; };
+            .then(data => setDay({ plantId: selectedPlant, data }))
+            .catch(() => {}); // keep showing the last readings if one refresh fails
     }, [selectedPlant]);
+    useRefreshWhileFocused(refreshReadings, 10_000);
+    const dayData = day?.plantId === selectedPlant ? day.data : null;
 
     // newest reading, uses unit functions from utils/units.ts to convert and format readings for display
-    const current = day?.current;
+    const current = dayData?.current;
     const currentData = {
         temperature: show(cToF(current?.temp)),
         humidity: show(current?.humidity),
-        sunlight: show(day?.sunlight_hours),
+        sunlight: show(dayData?.sunlight_hours),
         moisture: show(current?.soil_moisture),
     };
 

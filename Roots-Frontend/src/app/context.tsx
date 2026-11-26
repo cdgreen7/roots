@@ -18,7 +18,7 @@ type PlantContextType = {
     setPlants: React.Dispatch<React.SetStateAction<Plant[]>>;
     loading: boolean;
     error: string | null;
-    loadPlants: () => Promise<void>;
+    loadPlants: (quiet?: boolean) => Promise<void>;
 };
 
 const PlantContext = createContext<PlantContextType | undefined>(undefined);
@@ -29,31 +29,19 @@ export function PlantProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const loadPlants = useCallback(async () => {
-        try {
-            console.log('Fetching plants...');
-
+    // loadPlants fetches the user's plants (quiet just ensures backround refresh, so no loading spinner)
+    // failed refresh keeps showing the last plants instead of an error screen.
+    const loadPlants = useCallback(async (quiet = false) => {
+        if (!quiet) {
             setLoading(true);
             setError(null);
-
-            const data = await apiRequest<Plant[]>('/plants');
-
-            console.log('Plants returned:', data);
-            console.log('First plant ID:', data[0]?.id);
-            console.log('Plant ID type:', typeof data[0]?.id);
-
-            setPlants(data);
-
+        }
+        try {
+            setPlants(await apiRequest<Plant[]>('/plants'));
         } catch (err) {
-            console.error('Error fetching plants:', err);
-
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : 'Failed to retrieve plants'
-            );
+            if (!quiet) setError(err instanceof Error ? err.message : 'Failed to retrieve plants');
         } finally {
-            setLoading(false);
+            if (!quiet) setLoading(false);
         }
     }, []);
 

@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useCallback } from 'react';
+import { useRefreshWhileFocused } from '../../hooks/useRefreshWhileFocused';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -14,10 +15,9 @@ export default function ProfileScreen() {
   const router = useRouter();
   const user = getCurrentUser();
   const { plants, setPlants, loadPlants } = usePlants();
-  // Keep the plant list (and each board's online status) current when the tab opens.
-  useEffect(() => {
-    loadPlants();
-  }, [loadPlants]);
+  // Refresh the plant list (and each board's online status) when Profile opens and every 30 s while it's open.
+  const refreshPlants = useCallback(() => { loadPlants(true); }, [loadPlants]);
+  useRefreshWhileFocused(refreshPlants, 30_000);
 
   const handleSignOut = () => {
     signOut();
