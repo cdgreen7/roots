@@ -2,6 +2,7 @@ import { colors, globalStyles } from '@/styles/global';
 import { Text, TextInput, TouchableOpacity, View, ScrollView, Alert, Button, Platform, Modal, StyleSheet} from 'react-native';
 import { useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getCurrentUser } from '../../api/session';
 import { Calendar } from 'react-native-calendar-ui';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -30,7 +31,7 @@ type ProjectedDisplayItem = {
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const PLANT_COLORS = ['#4b6888', '#2a2a4a', '#27641f', '#d18a32', '#228b8d'];
-const SCHEDULE_STORAGE_KEY = '@roots/watering-schedules';
+const SCHEDULE_STORAGE_KEY = (userId: string | undefined) => `@roots_watering_schedules/${userId ?? 'signed-out'}`;
 
 export default function ScheduleScreen() {
   const [calendarGranularity, setCalendarGranularity] = useState<CalendarGranularity>('month');
@@ -44,11 +45,11 @@ export default function ScheduleScreen() {
   const [plantName, setPlantName] = useState('');
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [schedulesLoaded, setSchedulesLoaded] = useState(false);
-
+  const storageKey = SCHEDULE_STORAGE_KEY(getCurrentUser()?.id);
   useEffect(() => {
     const loadSchedules = async () => {
       try {
-        const savedSchedules = await AsyncStorage.getItem(SCHEDULE_STORAGE_KEY);
+        const savedSchedules = await AsyncStorage.getItem(storageKey);
         if (savedSchedules) {
           const parsedSchedules: unknown = JSON.parse(savedSchedules);
           if (!Array.isArray(parsedSchedules)) {
@@ -102,14 +103,14 @@ export default function ScheduleScreen() {
     };
 
     loadSchedules();
-  }, []);
+  }, [storageKey]);
 
   useEffect(() => {
     if (!schedulesLoaded) return;
 
     const saveSchedules = async () => {
       try {
-        await AsyncStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(rules));
+        await AsyncStorage.setItem(storageKey, JSON.stringify(rules));
       } catch (error) {
         console.error('Failed to save watering schedules:', error);
         Alert.alert('Unable to Save Schedules', 'The schedule could not be saved on this device.');
@@ -117,7 +118,7 @@ export default function ScheduleScreen() {
     };
 
     saveSchedules();
-  }, [rules, schedulesLoaded]);
+  }, [rules, schedulesLoaded, storageKey]);
 
   const eventColors = useMemo(() => {
     const colorMap: Record<string, string> = {};
