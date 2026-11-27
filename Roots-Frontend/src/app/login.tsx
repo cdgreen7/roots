@@ -3,16 +3,9 @@ import { StyleSheet, Text, View, ImageBackground, Alert, TextInput, TouchableOpa
 import { useRouter, } from 'expo-router';
 import { globalStyles } from '@/styles/global';
 import { apiRequest, setAuthToken, ApiError } from  '../api/client'
+import { User, setCurrentUser } from '../api/session'
 
 const plantimage = require('../../assets/images/login_leaves.png');
-
-export type User = {
-  id: string;
-  username: string;
-  name: string;
-  email: string;
-  created_at: string;
-};
 
 type AuthResponse = {
   token: string;
@@ -75,6 +68,7 @@ export default function WelcomeScreen() {
 
       // Save the token in memory so all future apiRequest calls include the Bearer header
       setAuthToken(data.token);
+      setCurrentUser(data.user); // for profile tab
       setLoading(false);
       // navigate to the main app (tabs) after successful login or registration
       router.replace('/(tabs)');

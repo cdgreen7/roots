@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRefreshWhileFocused } from '../../hooks/useRefreshWhileFocused';
 import { apiRequest } from '@/api/client';
 import { globalStyles } from '@/styles/global';
 import {StyleSheet, Text, View, ImageBackground, ScrollView, FlatList, Pressable,} from 'react-native';
@@ -19,73 +20,71 @@ type PastData = {
     count: number;              
 };
 
+// loadPastData fetches the last 5 days for a plant: one 24-hour window per card, all requested at once.
+async function loadPastData(plantId: string): Promise<PastData[]> {
+    const now = Date.now();
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    return Promise.all([1, 2, 3, 4, 5].map(async (day): Promise<PastData> => {
+        // limit=1: only ranges and sunlight_hours are used, and they cover the whole window anyway
+        const response = await apiRequest<PlantReadings>('/plant_readings', {
+            query: {
+                plant_id: plantId,
+                since: new Date(now - day * DAY_MS).toISOString(),
+                until: new Date(now - (day - 1) * DAY_MS).toISOString(),
+                limit: 1,
+            },
+        });
+        const { ranges } = response;
+        return {
+            id: String(day),
+            date: day === 1 ? 'Last 24 hours' : `${day} days ago`,
+            temperature: cToF(ranges.temp.avg),
+            humidity: ranges.humidity.avg,
+            sunlight: response.sunlight_hours,
+            moisture: ranges.soil_moisture.avg,
+            count: ranges.count,
+        };
+    }));
+}
+
 export default function DataDashboard() {
     //define variables for easy integration with sensor data
     const { plants, loading, error, loadPlants } = usePlants();
 
-    const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
+    // The plant picked in the dropdown. Until one is picked (or if it's gone), the first plant is shown.
+    const [pickedPlant, setSelectedPlant] = useState<string | null>(null);
+    const selectedPlant = plants.some(plant => plant.id === pickedPlant) ? pickedPlant : plants[0]?.id ?? null;
     const [dropdownVisible, setDropdownVisible] = useState(false);
 
-    // Historical readings
-    const [pastData, setPastData] = useState<PastData[]>([]);
-    const [historyLoading, setHistoryLoading] = useState(false);
-    const [historyError, setHistoryError] = useState<string | null>(null);
-
-    //load plants from backend
+    // load plants when Data opens; quietly refresh them (online status) every 30 s while it's open
     useEffect(() => {
         loadPlants();
     }, [loadPlants]);
+    const refreshPlants = useCallback(() => { loadPlants(true); }, [loadPlants]);
+    useRefreshWhileFocused(refreshPlants, 30_000);
 
-    //select the first plant after the API returns data
+    // Historical readings, tagged with the plant they belong to so another plant's cards never show.
+    const [past, setPast] = useState<{ plantId: string; days: PastData[]; error: string | null } | null>(null);
+
+    // reload historical data whenever the selected plant changes
     useEffect(() => {
-        if (plants.length > 0 && selectedPlant === null) {
-            setSelectedPlant(plants[0].id);
-        }
-    }, [plants, selectedPlant]);
-
-    // load the last 5 days for the selected plant: one 24-hour window per card, all requested at once
-    const loadPastData = async (plantId: string) => {
-        setHistoryLoading(true);
-        setHistoryError(null);
-        try {
-            const now = Date.now();
-            const DAY_MS = 24 * 60 * 60 * 1000;
-            const days = await Promise.all([1, 2, 3, 4, 5].map(async (day): Promise<PastData> => {
-                // limit=1: only ranges and sunlight_hours are used, and they cover the whole window anyway
-                const response = await apiRequest<PlantReadings>('/plant_readings', {
-                    query: {
-                        plant_id: plantId,
-                        since: new Date(now - day * DAY_MS).toISOString(),
-                        until: new Date(now - (day - 1) * DAY_MS).toISOString(),
-                        limit: 1,
-                    },
-                });
-                const { ranges } = response;
-                return {
-                    id: String(day),
-                    date: day === 1 ? 'Last 24 hours' : `${day} days ago`,
-                    temperature: cToF(ranges.temp.avg),
-                    humidity: ranges.humidity.avg,
-                    sunlight: response.sunlight_hours,
-                    moisture: ranges.soil_moisture.avg,
-                    count: ranges.count,
-                };
-            }));
-            setPastData(days);
-        } catch (err) {
-            setPastData([]);
-            setHistoryError(err instanceof Error ? err.message : 'Unable to load historical readings.');
-        } finally {
-            setHistoryLoading(false);
-        }
-    };
-
-    // reload historical data whenever selected plant changes
-    useEffect(() => {
-        if (selectedPlant !== null) {
-            loadPastData(selectedPlant);
-        }
+        if (selectedPlant === null) return;
+        let cancelled = false; // ignore a slow answer for a plant that's no longer selected
+        loadPastData(selectedPlant)
+            .then(days => { if (!cancelled) setPast({ plantId: selectedPlant, days, error: null }); })
+            .catch(err => {
+                if (!cancelled) {
+                    const error = err instanceof Error ? err.message : 'Unable to load historical readings.';
+                    setPast({ plantId: selectedPlant, days: [], error });
+                }
+            });
+        return () => { cancelled = true; };
     }, [selectedPlant]);
+
+    const pastForPlant = past?.plantId === selectedPlant ? past : null;
+    const pastData = pastForPlant?.days ?? [];
+    const historyError = pastForPlant?.error ?? null;
+    const historyLoading = selectedPlant !== null && pastForPlant === null;
 
     // currently selected plant
     const currentPlant = plants.find(
@@ -93,23 +92,24 @@ export default function DataDashboard() {
     );
 
     
-    // current day's readings for selected plant (last 24 hrs)
-    const [day, setDay] = useState<PlantReadings | null>(null);
-    useEffect(() => {
+    // current day's readings for selected plant (last 24 hrs), tagged with the plant they belong to.
+    // Refreshed every 10 s while Data is open, since the board sends a reading every 10 s.
+    const [day, setDay] = useState<{ plantId: string; data: PlantReadings } | null>(null);
+    const refreshReadings = useCallback(() => {
         if (selectedPlant === null) return;
-        let cancelled = false; // ignore a slow answer for a plant that's no longer selected
         getRecentReadings(selectedPlant, 24)
-            .then(data => { if (!cancelled) setDay(data); })
-            .catch(() => { if (!cancelled) setDay(null); });
-        return () => { cancelled = true; };
+            .then(data => setDay({ plantId: selectedPlant, data }))
+            .catch(() => {}); // keep showing the last readings if one refresh fails
     }, [selectedPlant]);
+    useRefreshWhileFocused(refreshReadings, 10_000);
+    const dayData = day?.plantId === selectedPlant ? day.data : null;
 
     // newest reading, uses unit functions from utils/units.ts to convert and format readings for display
-    const current = day?.current;
+    const current = dayData?.current;
     const currentData = {
         temperature: show(cToF(current?.temp)),
         humidity: show(current?.humidity),
-        sunlight: show(day?.sunlight_hours),
+        sunlight: show(dayData?.sunlight_hours),
         moisture: show(current?.soil_moisture),
     };
 
